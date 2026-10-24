@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123c2b">
+  <title>VNE, Gusau Business</title>
+  <style>
+    :root {
+      --green: #123c2b;
+      --green-light: #1e6847;
+      --cream: #fffaf0;
+      --text: #202820;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--cream);
+      color: var(--text);
+    }
+
+    .banner {
+      position: relative;
+      overflow: hidden;
+      padding: 38px 20px;
+      text-align: center;
+      color: #fff;
+      background:
+        radial-gradient(circle at 12% 15%, rgba(255, 215, 120, .22), transparent 27%),
+        radial-gradient(circle at 88% 85%, rgba(255, 255, 255, .12), transparent 28%),
+        linear-gradient(135deg, var(--green), var(--green-light));
+    }
+
+    .banner::before,
+    .banner::after {
+      content: "✦";
+      position: absolute;
+      color: rgba(255, 224, 150, .55);
+      font-size: 38px;
+    }
+
+    .banner::before {
+      top: 12px;
+      left: 8%;
+    }
+
+    .banner::after {
+      right: 8%;
+      bottom: 12px;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: clamp(1.8rem, 6vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: 1.5px;
+    }
+
+    .tagline {
+      margin: 10px 0 0;
+      color: #f8e7bd;
+      font-size: .98rem;
+      letter-spacing: .4px;
+    }
+
+    main {
+      width: min(100% - 32px, 900px);
+      margin: 28px auto 40px;
+    }
+
+    .section-title {
+      margin: 0 0 18px;
+      text-align: center;
+      font-size: 1.25rem;
+      color: var(--green);
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .category {
+      min-height: 155px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px 12px;
+      border: 1px solid #e5e9df;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 5px 16px rgba(18, 60, 43, .08);
+      text-align: center;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .category:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 9px 22px rgba(18, 60, 43, .13);
+    }
+
+    .category-icon {
+      width: 64px;
+      height: 64px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #eef5e9;
+      font-size: 2rem;
+    }
+
+    .category h2 {
+      margin: 0;
+      color: var(--green);
+      font-size: 1.08rem;
+    }
+
+    footer {
+      padding: 18px 16px;
+      color: #647067;
+      text-align: center;
+      font-size: .85rem;
+    }
+
+    @media (max-width: 360px) {
+      main {
+        width: calc(100% - 22px);
+      }
+
+      .category-grid {
+        gap: 10px;
+      }
+
+      .category {
+        min-height: 135px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="banner">
+    <h1 class="brand">VNE</h1>
+    <p class="tagline">Gusau Business</p>
+  </header>
+
+  <main>
+    <h2 class="section-title">Explore Our Store</h2>
+
+    <section class="category-grid" aria-label="Store categories">
+      <article class="category">
+        <div class="category-icon" aria-hidden="true">🥤</div>
+        <h2>Drinks</h2>
+      </article>
+
+      <article class="category">
+        <div class="category-icon" aria-hidden="true">🌾</div>
+        <h2>Cereal</h2>
+      </article>
+
+      <article class="category">
+        <div class="category-icon" aria-hidden="true">🛍️</div>
+        <h2>VOS</h2>
+      </article>
+
+      <article class="category">
+        <div class="category-icon" aria-hidden="true">📶</div>
+        <h2>Wi-Fi Hotspot</h2>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    &copy; <span id="year"></span> VNE, Gusau Business. All rights reserved.
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
