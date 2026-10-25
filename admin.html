@@ -66,22 +66,22 @@ footer{text-align:center;padding:18px;color:#758094;font-size:.8rem}
     <article class="card">
       <div class="icon">🥤</div><h2>Drinks</h2>
       <p>Manage drinks products, prices and availability.</p>
-      <div class="actions"><a class="btn" href="drinks.html">Open Drinks</a><button class="btn secondary" onclick="setSection('Drinks')">Manage</button></div>
+      <div class="actions"><button class="btn secondary" onclick="setSection('Drinks')">Manage</button></div>
     </article>
     <article class="card">
       <div class="icon">🌾</div><h2>Cereal</h2>
       <p>Manage cereal products, prices and availability.</p>
-      <div class="actions"><a class="btn" href="cereal.html">Open Cereal</a><button class="btn secondary" onclick="setSection('Cereal')">Manage</button></div>
+      <div class="actions"><button class="btn secondary" onclick="setSection('Cereal')">Manage</button></div>
     </article>
     <article class="card">
       <div class="icon">💳</div><h2>POS</h2>
       <p>Manage POS services, charges and service information.</p>
-      <div class="actions"><a class="btn" href="pos.html">Open POS</a><button class="btn secondary" onclick="setSection('POS')">Manage</button></div>
+      <div class="actions"><button class="btn secondary" onclick="setSection('POS')">Manage</button></div>
     </article>
     <article class="card">
       <div class="icon">📶</div><h2>Wi-Fi Hotspot</h2>
       <p>Manage hotspot plans, prices and connection information.</p>
-      <div class="actions"><a class="btn" href="wifi-hotspot.html">Open Wi-Fi</a><button class="btn secondary" onclick="setSection('Wi-Fi Hotspot')">Manage</button></div>
+      <div class="actions"><button class="btn secondary" onclick="setSection('Wi-Fi Hotspot')">Manage</button></div>
     </article>
     <article class="card">
       <div class="icon">👤</div><h2>Account</h2>
@@ -133,5 +133,15 @@ document.getElementById("businessName").value=localStorage.getItem("bnaBusinessN
 document.getElementById("theme").value=localStorage.getItem("bnaTheme")||"blue";
 document.getElementById("adminNote").value=localStorage.getItem("bnaAdminNote")||"";
 </script>
+
+<div style="max-width:1000px;margin:20px auto;padding:0 16px;">
+  <h2>Business Containers</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+    <a href="drinks.html" style="padding:16px;background:#fff;border-radius:12px;text-decoration:none;font-weight:800;">🥤 Drinks</a>
+    <a href="cereal.html" style="padding:16px;background:#fff;border-radius:12px;text-decoration:none;font-weight:800;">🌾 Cereal</a>
+    <a href="pos.html" style="padding:16px;background:#fff;border-radius:12px;text-decoration:none;font-weight:800;">💳 POS</a>
+    <a href="wifi-hotspot.html" style="padding:16px;background:#fff;border-radius:12px;text-decoration:none;font-weight:800;">📶 Wi-Fi Hotspot</a>
+  </div>
+</div>
 </body>
 </html>
