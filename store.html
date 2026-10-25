@@ -214,116 +214,35 @@
           <tbody id="productsBody"><tr><td colspan="8" class="empty">No products saved yet. Use “Add Product” above to start.</td></tr></tbody>
         </table>
       </div>
-      <p class="hint">Records are saved in this browser on this device. Clearing browser data or switching devices may remove or hide these records; this version is not yet synced to an online database.</p>
+      <p class="hint">Products are saved in the shared Firebase database and can sync across devices when Firestore access is configured.</p>
     </section>
-    <a class="back" href="index-2-updated.html">← Back to Home</a>
+    <a class="back" href="index.html">← Back to Home</a>
   </main>
 
   <footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-    const STORAGE_KEY = 'bna_store_inventory_v1';
-    const form = document.getElementById('productForm');
-    const fields = ['productName','packQuantity','muduPerPack','unitsPerMudu','unitPrice'];
-    const byId = id => document.getElementById(id);
-    let products = loadProducts();
-    let editingId = null;
-
-    function loadProducts() {
-      try {
-        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        return Array.isArray(value) ? value : [];
-      } catch (error) { return []; }
-    }
-    function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); }
-    function number(id) { return Math.max(0, Number(byId(id).value) || 0); }
-    function money(value) { return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN'}).format(Number(value)||0); }
-    function calculations(source) {
-      const packs = Math.max(0, Number(source.packQuantity)||0);
-      const muduPerPack = Math.max(0, Number(source.muduPerPack)||0);
-      const unitsPerMudu = Math.max(0, Number(source.unitsPerMudu)||0);
-      const unitPrice = Math.max(0, Number(source.unitPrice)||0);
-      const mudu = packs * muduPerPack;
-      const totalUnits = mudu * unitsPerMudu;
-      const soldUnits = Math.max(0, Number(source.soldUnits) || 0);
-      const units = Math.max(0, totalUnits - soldUnits);
-      return { packs, muduPerPack, unitsPerMudu, unitPrice, mudu, units, totalUnits, soldUnits, stockValue: units * unitPrice };
-    }
-    function formValues() {
-      return { name:byId('productName').value.trim(), packQuantity:number('packQuantity'), muduPerPack:number('muduPerPack'), unitsPerMudu:number('unitsPerMudu'), unitPrice:number('unitPrice') };
-    }
-    function updatePreview() {
-      const c = calculations(formValues());
-      byId('previewMudu').textContent = c.mudu.toLocaleString();
-      byId('previewUnits').textContent = c.units.toLocaleString();
-      byId('previewValue').textContent = money(c.stockValue);
-    }
-    function renderProducts() {
-      const query = byId('searchProducts').value.trim().toLowerCase();
-      const visible = products.filter(p => p.name.toLowerCase().includes(query));
-      byId('productCount').textContent = products.length.toLocaleString();
-      byId('totalUnits').textContent = products.reduce((sum,p)=>sum + calculations(p).units,0).toLocaleString();
-      byId('totalValue').textContent = money(products.reduce((sum,p)=>sum + calculations(p).stockValue,0));
-      const body = byId('productsBody');
-      if (!visible.length) {
-        body.innerHTML = `<tr><td colspan="8" class="empty">${products.length ? 'No matching products found.' : 'No products saved yet. Use “Add Product” above to start.'}</td></tr>`;
-        return;
-      }
-      body.innerHTML = visible.map((p,index) => {
-        const c = calculations(p);
-        const serial = products.findIndex(item=>item.id===p.id)+1;
-        return `<tr>
-          <td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td>
-          <td>${c.packs.toLocaleString()}</td><td>${c.mudu.toLocaleString()}</td>
-          <td>${c.units.toLocaleString()}${c.soldUnits ? `<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>` : ''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td>
-          <td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${p.id}">Edit</button><button class="btn btn-danger" type="button" data-delete="${p.id}">Delete</button></div></td>
-        </tr>`;
-      }).join('');
-      body.querySelectorAll('[data-edit]').forEach(button=>button.addEventListener('click',()=>editProduct(button.dataset.edit)));
-      body.querySelectorAll('[data-delete]').forEach(button=>button.addEventListener('click',()=>deleteProduct(button.dataset.delete)));
-    }
-    function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    }
-    function resetForm() {
-      form.reset();
-      byId('packQuantity').value = '1'; byId('muduPerPack').value = '40'; byId('unitsPerMudu').value = '16';
-      editingId = null; byId('formTitle').textContent = '➕ Add Product'; byId('saveButton').textContent = 'Save Product'; byId('cancelEdit').hidden = true;
-      updatePreview();
-    }
-    function editProduct(id) {
-      const p = products.find(item=>item.id===id); if (!p) return;
-      editingId = id;
-      byId('productName').value = p.name; byId('packQuantity').value = p.packQuantity;
-      byId('muduPerPack').value = p.muduPerPack; byId('unitsPerMudu').value = p.unitsPerMudu; byId('unitPrice').value = p.unitPrice;
-      byId('formTitle').textContent = '✏️ Edit Product'; byId('saveButton').textContent = 'Update Product'; byId('cancelEdit').hidden = false;
-      updatePreview(); byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
-    }
-    function deleteProduct(id) {
-      const p = products.find(item=>item.id===id); if (!p) return;
-      if (!confirm(`Delete “${p.name}” from the store records?`)) return;
-      products = products.filter(item=>item.id!==id); persist(); renderProducts();
-      if (editingId===id) resetForm();
-    }
-    fields.slice(1).forEach(id=>byId(id).addEventListener('input',updatePreview));
-    byId('unitPrice').addEventListener('input',updatePreview);
-    byId('searchProducts').addEventListener('input',renderProducts);
-    byId('cancelEdit').addEventListener('click',resetForm);
-    form.addEventListener('submit',event=>{
-      event.preventDefault();
-      const value = formValues();
-      if (!value.name || value.packQuantity<=0 || value.muduPerPack<=0 || value.unitsPerMudu<=0 || value.unitPrice<0) {
-        alert('Please enter a product name, valid quantities, and a price of zero or more.'); return;
-      }
-      if (editingId) {
-        const index = products.findIndex(p=>p.id===editingId);
-        if (index>=0) products[index] = {...products[index], ...value, updatedAt:new Date().toISOString()};
-      } else {
-        products.push({...value, id:(window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2), createdAt:new Date().toISOString()});
-      }
-      persist(); renderProducts(); resetForm();
-    });
-    updatePreview(); renderProducts();
+    const firebaseConfig = {apiKey:"AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0",authDomain:"bnag-98914.firebaseapp.com",projectId:"bnag-98914",storageBucket:"bnag-98914.firebasestorage.app",messagingSenderId:"773444518955",appId:"1:773444518955:web:0445763c9b6be5457a166e"};
+    if(!firebase.apps.length)firebase.initializeApp(firebaseConfig);
+    const db=firebase.firestore();
+    document.getElementById('year').textContent=new Date().getFullYear();
+    const form=document.getElementById('productForm'),fields=['productName','packQuantity','muduPerPack','unitsPerMudu','unitPrice'],byId=id=>document.getElementById(id);
+    let products=[],editingId=null;
+    function money(v){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',minimumFractionDigits:2}).format(Number(v)||0)}
+    function calculations(p){const packs=Math.max(0,+p.packQuantity||0),muduPerPack=Math.max(0,+p.muduPerPack||0),unitsPerMudu=Math.max(0,+p.unitsPerMudu||0),unitPrice=Math.max(0,+p.unitPrice||0),mudu=packs*muduPerPack,totalUnits=mudu*unitsPerMudu,soldUnits=Math.max(0,+p.soldUnits||0),units=Math.max(0,totalUnits-soldUnits);return{packs,muduPerPack,unitsPerMudu,unitPrice,mudu,units,totalUnits,soldUnits,stockValue:units*unitPrice}}
+    function number(id){return Math.max(0,Number(byId(id).value)||0)}
+    function formValues(){return{name:byId('productName').value.trim(),packQuantity:number('packQuantity'),muduPerPack:number('muduPerPack'),unitsPerMudu:number('unitsPerMudu'),unitPrice:number('unitPrice')}}
+    function updatePreview(){const c=calculations(formValues());byId('previewMudu').textContent=c.mudu.toLocaleString();byId('previewUnits').textContent=c.units.toLocaleString();byId('previewValue').textContent=money(c.stockValue)}
+    function escapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function renderProducts(){const query=byId('searchProducts').value.trim().toLowerCase(),visible=products.filter(p=>String(p.name||'').toLowerCase().includes(query));byId('productCount').textContent=products.length.toLocaleString();byId('totalUnits').textContent=products.reduce((s,p)=>s+calculations(p).units,0).toLocaleString();byId('totalValue').textContent=money(products.reduce((s,p)=>s+calculations(p).stockValue,0));const body=byId('productsBody');if(!visible.length){body.innerHTML=`<tr><td colspan="8" class="empty">${products.length?'No matching products found.':'No products saved yet. Use “Add Product” above to start.'}</td></tr>`;return}body.innerHTML=visible.map(p=>{const c=calculations(p),serial=products.findIndex(x=>x.id===p.id)+1;return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td>${c.packs.toLocaleString()}</td><td>${c.mudu.toLocaleString()}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div></td></tr>`}).join('');body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete))}
+    function resetForm(){form.reset();byId('packQuantity').value='1';byId('muduPerPack').value='40';byId('unitsPerMudu').value='16';editingId=null;byId('formTitle').textContent='➕ Add Product';byId('saveButton').textContent='Save Product';byId('cancelEdit').hidden=true;updatePreview()}
+    function editProduct(id){const p=products.find(x=>x.id===id);if(!p)return;editingId=id;byId('productName').value=p.name;byId('packQuantity').value=p.packQuantity;byId('muduPerPack').value=p.muduPerPack;byId('unitsPerMudu').value=p.unitsPerMudu;byId('unitPrice').value=p.unitPrice;byId('formTitle').textContent='✏️ Edit Product';byId('saveButton').textContent='Update Product';byId('cancelEdit').hidden=false;updatePreview();byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'})}
+    async function deleteProduct(id){const p=products.find(x=>x.id===id);if(!p||!confirm(`Delete “${p.name}” from the store records?`))return;try{await db.collection('inventory').doc(String(id)).delete();if(editingId===id)resetForm()}catch(e){console.error(e);alert('Could not delete product from Firebase. Check Firestore rules and internet connection.')}}
+    fields.slice(1).forEach(id=>byId(id).addEventListener('input',updatePreview));byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
+    form.addEventListener('submit',async event=>{event.preventDefault();const value=formValues();if(!value.name||value.packQuantity<=0||value.muduPerPack<=0||value.unitsPerMudu<=0||value.unitPrice<0){alert('Please enter a product name, valid quantities, and a price of zero or more.');return}byId('saveButton').disabled=true;try{if(editingId){await db.collection('inventory').doc(String(editingId)).set({...products.find(p=>p.id===editingId),...value,updatedAt:new Date().toISOString()},{merge:true})}else{const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2);await db.collection('inventory').doc(id).set({...value,id,soldUnits:0,createdAt:new Date().toISOString()})}resetForm()}catch(e){console.error(e);alert('Product could not be saved to Firebase. Check Firestore is enabled, rules allow writing inventory, and internet is connected.')}finally{byId('saveButton').disabled=false}});
+    let migrationAttempted=false;db.collection('inventory').onSnapshot(async s=>{if(s.empty&&!migrationAttempted){migrationAttempted=true;let old=[];try{old=JSON.parse(localStorage.getItem('bna_store_inventory_v1')||'[]')}catch(_){}if(Array.isArray(old)&&old.length){try{const batch=db.batch();old.forEach(p=>{if(p&&p.id!=null)batch.set(db.collection('inventory').doc(String(p.id)),p,{merge:true})});await batch.commit();return}catch(e){console.error('Legacy stock import failed',e)}}}products=s.docs.map(d=>({...d.data(),id:d.id}));renderProducts()},e=>{console.error(e);byId('productsBody').innerHTML='<tr><td colspan="8" class="empty">Unable to load Firebase inventory. Check Firestore rules and internet connection.</td></tr>';});
+    updatePreview();
   </script>
 </body>
 </html>

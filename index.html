@@ -94,7 +94,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 <body>
 <header class="top-marquee" aria-label="Business name"><div class="marquee-track">B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business</div></header>
 <nav class="nav" aria-label="Main navigation"><div class="nav-inner">
-<a href="accounts.html">👥 Accounts</a><a href="store.html">🏪 Store</a>
+<a href="account.html">👤 Account</a><a href="store.html">🏪 Store</a>
 </div></nav>
 <main>
   
@@ -123,240 +123,34 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     <div class="dialog-actions"><button class="btn light" value="cancel">Cancel</button><button class="btn blue" id="saveEdit" value="save">Save Price</button></div>
   </form>
 </dialog>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 (() => {
   'use strict';
   const STORAGE_KEY = 'bna_store_inventory_v1';
   const SALES_KEY = 'bna_crm_sales_v1';
   const $ = id => document.getElementById(id);
-  let products = [];
-  let cart = [];
-  let editingCartId = null;
-  let selectedCategory = 'Cereal';
-  let recentSales = loadJson(SALES_KEY, []);
-
-  function loadJson(key, fallback) {
-    try { const parsed = JSON.parse(localStorage.getItem(key) || 'null'); return parsed == null ? fallback : parsed; }
-    catch (_) { return fallback; }
-  }
-  function money(n) {
-    return new Intl.NumberFormat('en-NG', {style:'currency',currency:'NGN',maximumFractionDigits:2}).format(Number(n) || 0);
-  }
-  function stockInfo(p) {
-    const totalUnits = Math.max(0, (Number(p.packQuantity)||0) * (Number(p.muduPerPack)||0) * (Number(p.unitsPerMudu)||0));
-    const soldUnits = Math.max(0, Number(p.soldUnits)||0);
-    return {available:Math.max(0,totalUnits-soldUnits), unitPrice:Math.max(0,Number(p.unitPrice)||0)};
-  }
-  function setNotice(message, type='info') {
-    const el = $('notice'); el.className = 'status' + (type==='error'?' error':type==='success'?' success':''); el.textContent = message;
-  }
-  function readProducts() {
-    products = loadJson(STORAGE_KEY, []);
-    if (!Array.isArray(products)) products = [];
-    products = products.filter(p => p && p.id != null && typeof p.name === 'string');
-    renderCategoryButtons();
-    renderProductOptions();
-    renderCart();
-    if (!products.length) {
-      setNotice('No products were found in store.html records on this browser. Open store.html, add and save products, then return here. Both pages must be hosted on the same website origin.', 'error');
-    } else {
-      setNotice('Choose Cereal or Drinks, then tick products to add them to the bill.', 'success');
-    }
-  }
-
-  function productCategory(p) {
-    const saved = String(p.category || p.categoryName || p.productCategory || p.group || p.type || '').trim().toLocaleLowerCase();
-    const name = String(p.name || '').toLocaleLowerCase();
-    // This CRM screen intentionally has only the two requested categories.
-    const drinkPattern = /\b(drinks?|beverages?|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt|energy drink)\b/;
-    if (drinkPattern.test(saved) || drinkPattern.test(name)) return 'Drinks';
-    // Beans, rice, grains and other non-drink stock are shown in Cereal for now.
-    return 'Cereal';
-  }
-
-  function renderCategoryButtons() {
-    const root = $('categoryButtons');
-    const categories = ['Cereal', 'Drinks'];
-    if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
-    root.innerHTML = '';
-    categories.forEach(category => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'category-button' + (category === selectedCategory ? ' active' : '');
-      button.textContent = category;
-      button.setAttribute('aria-pressed', String(category === selectedCategory));
-      button.addEventListener('click', () => {
-        selectedCategory = category;
-        renderCategoryButtons();
-        renderProductOptions();
-      });
-      root.appendChild(button);
-    });
-
-    // Keep all four navigation/category buttons together in one aligned horizontal row.
-    [
-      { label: 'POS', href: 'pos.html' },
-      { label: 'Wi-Fi', href: 'wifi-hotspot.html' }
-    ].forEach(item => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'category-button extra-nav-button';
-      button.textContent = item.label;
-      button.addEventListener('click', () => { window.location.href = item.href; });
-      root.appendChild(button);
-    });
-  }
-
-  function renderProductOptions() {
-    const root = $('productOptions');
-    const matches = products.filter(p => productCategory(p) === selectedCategory);
-    root.innerHTML = '';
-    if (!matches.length) {
-      const empty = document.createElement('div');
-      empty.className = 'no-products';
-      empty.textContent = 'No products in this category.';
-      root.appendChild(empty);
-      return;
-    }
-    matches.forEach(p => {
-      const info = stockInfo(p);
-      const selected = cart.some(item => String(item.productId) === String(p.id));
-      const row = document.createElement('label');
-      row.className = 'product-option';
-      const name = document.createElement('span');
-      name.className = 'option-name';
-      name.textContent = p.name;
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = selected;
-      checkbox.disabled = info.available <= 0 && !selected;
-      checkbox.setAttribute('aria-label', 'Add ' + p.name + ' to bill');
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) {
-          addProductById(String(p.id));
-        } else {
-          cart = cart.filter(item => String(item.productId) !== String(p.id));
-          renderCart();
-          setNotice(p.name + ' removed from the bill.', 'success');
-        }
-      });
-      row.append(name, checkbox);
-      root.appendChild(row);
-    });
-  }
-
-  function addProductById(id) {
-    const p = products.find(item => String(item.id) === String(id));
-    if (!p) { setNotice('That product is no longer in the Store records. Reload products and try again.', 'error'); return; }
-    const info = stockInfo(p);
-    if (info.available < 1) { setNotice('This product is out of stock.', 'error'); return; }
-    const existing = cart.find(item => String(item.productId) === String(id));
-    if (existing) {
-      if (existing.quantity + 1 > info.available) { setNotice(`Only ${info.available} unit(s) of ${p.name} are available.`, 'error'); return; }
-      existing.quantity += 1;
-    } else {
-      cart.push({cartId:makeId(), productId:p.id, name:p.name, unitPrice:info.unitPrice, quantity:1});
-    }
-    renderCart();
-    setNotice(p.name + ' added to the bill.', 'success');
-  }
-  function makeId() { return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
-  function cartTotal() { return cart.reduce((sum,item)=>sum + item.quantity * item.unitPrice,0); }
-  function renderCart() {
-    const root = $('cartList');
-    $('grandTotal').textContent = money(cartTotal());
-    if (!cart.length) {
-      root.innerHTML = '<div class="empty">Your bill is empty. Tick a product above to begin.</div>';
-      renderProductOptions();
-      return;
-    }
-    root.innerHTML = '';
-    cart.forEach(item => {
-      const p = products.find(product => String(product.id) === String(item.productId));
-      const info = p ? stockInfo(p) : {available:0};
-      const row = document.createElement('article');
-      row.className = 'cart-item';
-      const infoCol = document.createElement('div'); infoCol.className = 'product-info';
-      const name = document.createElement('div'); name.className = 'product-name'; name.textContent = item.name;
-      const unit = document.createElement('div'); unit.className = 'unit-price'; unit.textContent = money(item.unitPrice) + ' per piece';
-      const priceEditor = document.createElement('div'); priceEditor.className = 'edit-price'; priceEditor.id = 'price-' + item.cartId;
-      priceEditor.innerHTML = '<label>Price per piece (₦)</label><input type="number" min="0" step="0.01" aria-label="Edit price for '+escapeAttr(item.name)+'">';
-      const priceInput = priceEditor.querySelector('input'); priceInput.value = item.unitPrice;
-      priceInput.addEventListener('change', () => {
-        const n = Number(priceInput.value);
-        if (Number.isFinite(n) && n >= 0) { item.unitPrice = n; renderCart(); }
-      });
-      infoCol.append(name, unit, priceEditor);
-      const qtyCol = document.createElement('div'); qtyCol.className = 'quantity-area';
-      const qtyLabel = document.createElement('span'); qtyLabel.className = 'qty-label'; qtyLabel.textContent = `Quantity · ${info.available.toLocaleString()} available`;
-      const controls = document.createElement('div'); controls.className = 'qty-control';
-      const minus = document.createElement('button'); minus.className='qty-btn'; minus.type='button'; minus.textContent='−'; minus.setAttribute('aria-label','Decrease quantity');
-      const qty = document.createElement('span'); qty.className='qty-value'; qty.textContent=item.quantity;
-      const plus = document.createElement('button'); plus.className='qty-btn'; plus.type='button'; plus.textContent='+';
-      minus.addEventListener('click',()=>{ if(item.quantity>1)item.quantity--; else cart=cart.filter(x=>x.cartId!==item.cartId); renderCart(); });
-      plus.addEventListener('click',()=>{ const current=cart.reduce((s,x)=>s+(String(x.productId)===String(item.productId)?x.quantity:0),0); if(current+1>info.available){setNotice(`Only ${info.available} unit(s) of ${item.name} are available.`, 'error');return;} item.quantity++;renderCart(); });
-      controls.append(minus,qty,plus); qtyCol.append(qtyLabel,controls);
-      const totalCol=document.createElement('div');totalCol.className='item-total';
-      const line=document.createElement('strong');line.textContent=money(item.quantity*item.unitPrice);
-      const lineLabel=document.createElement('small');lineLabel.textContent='Line total';
-      const actions=document.createElement('div');actions.className='item-actions';
-      const edit=document.createElement('button');edit.className='icon-btn';edit.type='button';edit.textContent='✎';edit.title='Edit price';edit.setAttribute('aria-label','Edit price');
-      edit.addEventListener('click',()=>{ const el=$('price-'+item.cartId);el.classList.toggle('show'); });
-      const del=document.createElement('button');del.className='icon-btn delete';del.type='button';del.textContent='▤';del.title='Remove product';del.setAttribute('aria-label','Remove product');
-      del.addEventListener('click',()=>{cart=cart.filter(x=>x.cartId!==item.cartId);renderCart();});
-      actions.append(edit,del);totalCol.append(line,lineLabel,actions);
-      row.append(infoCol,qtyCol,totalCol);root.appendChild(row);
-    });
-    renderProductOptions();
-  }
-  function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function completeSale() {
-    if (!cart.length) { setNotice('Add at least one product before completing a sale.', 'error'); return; }
-    // Re-read the current store list so we do not rely on a stale page copy.
-    const latest = loadJson(STORAGE_KEY, []);
-    if (!Array.isArray(latest)) { setNotice('Could not read the Store records. Sale was not completed.', 'error'); return; }
-    for (const item of cart) {
-      const p = latest.find(product => String(product.id) === String(item.productId));
-      if (!p) { setNotice(`${item.name} is no longer in Store. Sale was not completed.`, 'error'); return; }
-      const info = stockInfo(p);
-      const requested = cart.filter(x=>String(x.productId)===String(item.productId)).reduce((s,x)=>s+x.quantity,0);
-      if (requested > info.available) { setNotice(`Not enough ${item.name} in stock. Available: ${info.available}. Sale was not completed.`, 'error'); return; }
-    }
-    const sale = {id:makeId(), date:new Date().toISOString(), items:cart.map(x=>({...x})), total:cartTotal()};
-    cart.forEach(item=>{
-      const p=latest.find(product=>String(product.id)===String(item.productId));
-      p.soldUnits=Math.max(0,Number(p.soldUnits)||0)+item.quantity;
-      p.updatedAt=new Date().toISOString();
-    });
-    try {
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));
-      recentSales.unshift(sale); recentSales=recentSales.slice(0,20);
-      localStorage.setItem(SALES_KEY,JSON.stringify(recentSales));
-    } catch (_) { setNotice('Browser storage could not be updated. Sale was not completed; check available storage.', 'error'); return; }
-    const receipt = sale.items.map(x=>`${x.name} × ${x.quantity} — ${money(x.quantity*x.unitPrice)}`).join('\n');
-    alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(sale.total));
-    cart=[];readProducts();renderHistory();setNotice('Sale completed. Store stock and recent sales were updated on this device.', 'success');
-  }
-  function renderHistory() {
-    const root=$('salesHistory');
-    // This simplified CRM layout does not include a sales-history container.
-    if (!root) return;
-    if(!recentSales.length){root.textContent='No completed sales recorded yet.';return;}
-    root.innerHTML='';
-    recentSales.slice(0,8).forEach(sale=>{
-      const row=document.createElement('div');row.className='history-row';
-      const left=document.createElement('span');left.textContent=new Date(sale.date).toLocaleString()+' · '+sale.items.length+' item type(s)';
-      const right=document.createElement('strong');right.textContent=money(sale.total);
-      row.append(left,right);root.appendChild(row);
-    });
-  }
-  $('completeSale').addEventListener('click',completeSale);
-  const yearElement = $('year');
-  if (yearElement) yearElement.textContent = new Date().getFullYear();
-  // A refresh lets the CRM pick up products added/edited in store.html.
-  window.addEventListener('focus',readProducts);
-  window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY)readProducts();});
-  readProducts();renderHistory();
+  let products = [], cart = [], selectedCategory = 'Cereal', busy = false;
+  const db = (() => { try { if (!firebase.apps.length) firebase.initializeApp({
+    apiKey:'AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0', authDomain:'bnag-98914.firebaseapp.com',
+    projectId:'bnag-98914', storageBucket:'bnag-98914.firebasestorage.app',
+    messagingSenderId:'773444518955', appId:'1:773444518955:web:0445763c9b6be5457a166e'
+  }); return firebase.firestore(); } catch(e) { console.error(e); return null; } })();
+  function money(n){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',maximumFractionDigits:2}).format(Number(n)||0)}
+  function makeId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2)}
+  function stockInfo(p){const total=Math.max(0,(+p.packQuantity||0)*(+p.muduPerPack||0)*(+p.unitsPerMudu||0));return {available:Math.max(0,total-(+p.soldUnits||0)),unitPrice:Math.max(0,+p.unitPrice||0)}}
+  function setNotice(message,type='info'){const el=$('notice');el.className='status'+(type==='error'?' error':type==='success'?' success':'');el.textContent=message;el.hidden=false}
+  function productCategory(p){const saved=String(p.category||p.categoryName||p.productCategory||p.group||p.type||'').toLowerCase();const name=String(p.name||'').toLowerCase();return /\b(drinks?|beverages?|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt|energy drink)\b/.test(saved+' '+name)?'Drinks':'Cereal'}
+  function renderCategoryButtons(){const root=$('categoryButtons');root.innerHTML='';['Cereal','Drinks'].forEach(category=>{const b=document.createElement('button');b.type='button';b.className='category-button'+(category===selectedCategory?' active':'');b.textContent=category;b.setAttribute('aria-pressed',String(category===selectedCategory));b.onclick=()=>{selectedCategory=category;renderCategoryButtons();renderProductOptions()};root.appendChild(b)});[{label:'POS',href:'pos.html'},{label:'Wi-Fi',href:'wifi-hotspot.html'}].forEach(x=>{const b=document.createElement('button');b.type='button';b.className='category-button extra-nav-button';b.textContent=x.label;b.onclick=()=>location.href=x.href;root.appendChild(b)})}
+  function renderProductOptions(){const root=$('productOptions');root.innerHTML='';const matches=products.filter(p=>productCategory(p)===selectedCategory);if(!matches.length){const d=document.createElement('div');d.className='no-products';d.textContent='No products in this category.';root.appendChild(d);return}matches.forEach(p=>{const info=stockInfo(p),selected=cart.some(x=>String(x.productId)===String(p.id));const row=document.createElement('label');row.className='product-option';const name=document.createElement('span');name.className='option-name';name.textContent=p.name;const check=document.createElement('input');check.type='checkbox';check.checked=selected;check.disabled=info.available<=0&&!selected;check.setAttribute('aria-label','Add '+p.name+' to bill');check.onchange=()=>{if(check.checked)addProductById(String(p.id));else{cart=cart.filter(x=>String(x.productId)!==String(p.id));renderCart();setNotice(p.name+' removed from the bill.','success')}};row.append(name,check);root.appendChild(row)})}
+  function renderCart(){const root=$('cartList');$('grandTotal').textContent=money(cart.reduce((s,x)=>s+x.quantity*x.unitPrice,0));if(!cart.length){root.innerHTML='<div class="empty">Your bill is empty. Tick a product above to begin.</div>';renderProductOptions();return}root.innerHTML='';cart.forEach(item=>{const p=products.find(x=>String(x.id)===String(item.productId)),info=p?stockInfo(p):{available:0};const row=document.createElement('article');row.className='cart-item';const infoCol=document.createElement('div');infoCol.className='product-info';const name=document.createElement('div');name.className='product-name';name.textContent=item.name;const unit=document.createElement('div');unit.className='unit-price';unit.textContent=money(item.unitPrice)+' per piece';const priceEditor=document.createElement('div');priceEditor.className='edit-price';priceEditor.innerHTML='<label>Price per piece (₦)</label><input type="number" min="0" step="0.01" aria-label="Edit price">';const priceInput=priceEditor.querySelector('input');priceInput.value=item.unitPrice;priceInput.onchange=()=>{const n=Number(priceInput.value);if(Number.isFinite(n)&&n>=0){item.unitPrice=n;renderCart()}};infoCol.append(name,unit,priceEditor);const qtyCol=document.createElement('div');qtyCol.className='quantity-area';const label=document.createElement('span');label.className='qty-label';label.textContent='Quantity · '+Number(info.available).toLocaleString()+' available';const controls=document.createElement('div');controls.className='qty-control';const minus=document.createElement('button');minus.className='qty-btn';minus.type='button';minus.textContent='−';const qty=document.createElement('span');qty.className='qty-value';qty.textContent=item.quantity;const plus=document.createElement('button');plus.className='qty-btn';plus.type='button';plus.textContent='+';minus.onclick=()=>{if(item.quantity>1)item.quantity--;else cart=cart.filter(x=>x.cartId!==item.cartId);renderCart()};plus.onclick=()=>{const count=cart.filter(x=>String(x.productId)===String(item.productId)).reduce((s,x)=>s+x.quantity,0);if(count+1>info.available){setNotice('Only '+info.available+' unit(s) of '+item.name+' are available.','error');return}item.quantity++;renderCart()};controls.append(minus,qty,plus);qtyCol.append(label,controls);const totalCol=document.createElement('div');totalCol.className='item-total';const line=document.createElement('strong');line.textContent=money(item.quantity*item.unitPrice);const small=document.createElement('small');small.textContent='Line total';const actions=document.createElement('div');actions.className='item-actions';const edit=document.createElement('button');edit.className='icon-btn';edit.type='button';edit.textContent='✎';edit.title='Edit price';edit.onclick=()=>priceEditor.classList.toggle('show');const del=document.createElement('button');del.className='icon-btn delete';del.type='button';del.textContent='▤';del.title='Remove product';del.onclick=()=>{cart=cart.filter(x=>x.cartId!==item.cartId);renderCart()};actions.append(edit,del);totalCol.append(line,small,actions);row.append(infoCol,qtyCol,totalCol);root.appendChild(row)});renderProductOptions()}
+  function addProductById(id){const p=products.find(x=>String(x.id)===String(id));if(!p){setNotice('Product not found in Store.','error');return}const info=stockInfo(p);if(info.available<1){setNotice('This product is out of stock.','error');return}const existing=cart.find(x=>String(x.productId)===String(id));if(existing){if(existing.quantity+1>info.available){setNotice('Only '+info.available+' unit(s) are available.','error');return}existing.quantity++}else cart.push({cartId:makeId(),productId:p.id,name:p.name,category:productCategory(p).toLowerCase(),unitPrice:info.unitPrice,quantity:1});renderCart();setNotice(p.name+' added to the bill.','success')}
+  async function loadProducts(){if(!db){setNotice('Firebase could not initialize. Check internet and Firebase configuration.','error');return}try{const snap=await db.collection('inventory').get();if(snap.empty){let old=[];try{old=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(_){}if(Array.isArray(old)&&old.length){const batch=db.batch();old.forEach(p=>{if(p&&p.id!=null)batch.set(db.collection('inventory').doc(String(p.id)),p,{merge:true})});await batch.commit();return loadProducts()}}products=snap.docs.map(d=>({...d.data(),id:d.id}));renderCategoryButtons();renderProductOptions();renderCart();setNotice(products.length?'Products loaded from Firebase.':'No products yet. Add products in Store.','success')}catch(e){console.error(e);setNotice('Could not load products from Firebase. Check that Firestore is enabled and its rules allow reading inventory.','error')}}
+  async function completeSale(){if(busy)return;if(!cart.length){setNotice('Add at least one product before completing a sale.','error');return}if(!db){setNotice('Firebase is not available; sale was not saved.','error');return}busy=true;$('completeSale').disabled=true;try{const saleRef=db.collection('sales').doc(makeId());const saleItems=cart.map(x=>({...x}));const total=saleItems.reduce((s,x)=>s+x.quantity*x.unitPrice,0);const categoryTotals={drinks:0,cereal:0,pos:0,wifi:0};saleItems.forEach(x=>{const key=x.category==='drinks'?'drinks':'cereal';categoryTotals[key]+=x.quantity*x.unitPrice});await db.runTransaction(async tx=>{const refs=[...new Set(saleItems.map(x=>String(x.productId)))].map(id=>db.collection('inventory').doc(id));const snaps=[];for(const ref of refs)snaps.push(await tx.get(ref));const map=new Map(refs.map((r,i)=>[r.id,{ref:r,snap:snaps[i]}]));const increments={};saleItems.forEach(x=>increments[String(x.productId)]=(increments[String(x.productId)]||0)+x.quantity);for(const [id,qty] of Object.entries(increments)){const entry=map.get(id);if(!entry||!entry.snap.exists)throw new Error(xName(saleItems,id)+' is missing from Store.');const p={...entry.snap.data(),id};if(qty>stockInfo(p).available)throw new Error('Insufficient stock for '+p.name+'. Available: '+stockInfo(p).available);tx.update(entry.ref,{soldUnits:Math.max(0,+p.soldUnits||0)+qty,updatedAt:new Date().toISOString()})}tx.set(saleRef,{id:saleRef.id,date:new Date().toISOString(),timestamp:firebase.firestore.FieldValue.serverTimestamp(),items:saleItems,total,categoryTotals,source:'home'})});const receipt=saleItems.map(x=>x.name+' × '+x.quantity+' — '+money(x.quantity*x.unitPrice)).join('\n');alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(total));cart=[];await loadProducts();setNotice('Sale saved to Firebase. Stock and account records were updated.','success')}catch(e){console.error(e);setNotice(e.message||'Sale could not be saved. Check Firebase rules and internet connection.','error')}finally{busy=false;$('completeSale').disabled=false}}
+  function xName(items,id){return (items.find(x=>String(x.productId)===String(id))||{}).name||'Product'}
+  let migrationAttempted=false;
+  $('completeSale').addEventListener('click',completeSale);window.addEventListener('focus',loadProducts);if(db)db.collection('inventory').onSnapshot(async s=>{if(s.empty&&!migrationAttempted){migrationAttempted=true;let old=[];try{old=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(_){}if(Array.isArray(old)&&old.length){try{const batch=db.batch();old.forEach(p=>{if(p&&p.id!=null)batch.set(db.collection('inventory').doc(String(p.id)),p,{merge:true})});await batch.commit();return}catch(e){console.error('Legacy stock import failed',e)}}}products=s.docs.map(d=>({...d.data(),id:d.id}));renderCategoryButtons();renderProductOptions();renderCart();if(!products.length)setNotice('No products yet. Add products in Store.','info')},e=>{console.error(e);setNotice('Live stock sync failed. Check Firestore read permissions.','error')});else loadProducts();
 })();
 </script>
 </body>
