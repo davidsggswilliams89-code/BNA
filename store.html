@@ -42,7 +42,9 @@
     }
     .nav {
       display:grid;
-      grid-template-columns:repeat(6,minmax(0,1fr));
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      max-width:560px;
+      margin:0 auto;
       gap:6px;
       padding:8px;
       background:linear-gradient(135deg,var(--blue),var(--blue-dark));
@@ -65,9 +67,38 @@
     }
     .nav a:hover { background:rgba(255,255,255,.24); }
     main {
-      width:min(100% - 28px,900px);
-      margin:28px auto 40px;
+      width:min(100% - 28px,1100px);
+      margin:22px auto 40px;
     }
+    .page-title { text-align:center; margin:0 0 6px; color:var(--blue-dark); }
+    .intro { text-align:center; margin:0 auto 20px; max-width:760px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+    .summary { background:#fff; border:1px solid #e4eaf3; border-radius:15px; padding:15px; box-shadow:0 4px 14px rgba(20,40,80,.05); }
+    .summary small { display:block; color:#657186; font-weight:700; margin-bottom:7px; }
+    .summary strong { color:var(--blue-dark); font-size:1.25rem; overflow-wrap:anywhere; }
+    .panel { background:#fff; border:1px solid #e4eaf3; border-radius:18px; padding:18px; margin:16px 0; box-shadow:0 6px 20px rgba(20,40,80,.06); }
+    .panel h2 { margin:0 0 16px; color:var(--blue-dark); font-size:1.2rem; }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field label { font-size:.9rem; font-weight:700; color:#344054; }
+    .field input { width:100%; min-height:44px; border:1px solid #cfd8e6; border-radius:10px; padding:10px 12px; font:inherit; background:#fff; color:var(--text); }
+    .field input:focus { outline:2px solid #b7d2ff; border-color:var(--blue); }
+    .full { grid-column:1/-1; }
+    .calc-box { background:#eef5ff; border-radius:12px; padding:12px 14px; margin-top:14px; color:#23456f; line-height:1.7; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; }
+    .btn { border:0; border-radius:10px; min-height:43px; padding:10px 16px; font:inherit; font-weight:700; cursor:pointer; }
+    .btn-primary { background:var(--blue); color:#fff; }
+    .btn-secondary { background:#eaf0f8; color:#20334f; }
+    .btn-danger { background:#fff0f0; color:#b42318; }
+    .table-wrap { width:100%; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width:820px; }
+    th,td { padding:12px 10px; text-align:left; border-bottom:1px solid #e8edf4; vertical-align:middle; }
+    th { background:#f3f7fc; color:#344054; font-size:.85rem; }
+    td { font-size:.9rem; }
+    .empty { text-align:center; padding:24px; color:#667085; }
+    .hint { font-size:.86rem; color:#667085; margin:8px 0 0; }
+    .notice { border-radius:10px; padding:11px 13px; margin:12px 0; background:#fff8e6; color:#795b12; font-size:.9rem; }
+    .back { margin-top:18px; }
     .card {
       background:#fff;
       border-radius:20px;
@@ -104,14 +135,18 @@
       font-size:.85rem;
     }
     @media(max-width:650px) {
-      .nav { grid-template-columns:repeat(3,1fr); }
+      .nav { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .nav a { min-height:44px; }
+      .summary-grid { grid-template-columns:1fr; }
+      .form-grid { grid-template-columns:1fr; }
+      .full { grid-column:auto; }
+      .panel { padding:14px; }
     }
   </style>
 </head>
 <body>
   <div class="ticker">
-    <div class="ticker-track">BNA, Busau Business &nbsp; • &nbsp; BNA, Busau Business &nbsp; • &nbsp; BNA, Busau Business</div>
+    <div class="ticker-track">B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business</div>
   </div>
 
   <nav class="nav" aria-label="Main navigation">
@@ -120,15 +155,173 @@
   </nav>
 
   <main>
-    <section class="card">
-      <div class="icon">🏪</div>
-      <h1>Store</h1>
-      <p>Store products and information will be displayed here.</p>
-      <a class="back" href="index-2-updated.html">← Back to Home</a>
+    <h1 class="page-title">Store Inventory & Stock Records</h1>
+    <p class="intro">Add products, record the quantity you buy, convert bags into mudu and units, and track the value of your stock.</p>
+
+    <section class="summary-grid" aria-label="Inventory summary">
+      <div class="summary"><small>PRODUCT TYPES</small><strong id="productCount">0</strong></div>
+      <div class="summary"><small>TOTAL STOCK UNITS</small><strong id="totalUnits">0</strong></div>
+      <div class="summary"><small>TOTAL STOCK VALUE</small><strong id="totalValue">₦0.00</strong></div>
     </section>
+
+    <section class="panel" id="productFormPanel">
+      <h2 id="formTitle">➕ Add Product</h2>
+      <form id="productForm">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="productName">Product name</label>
+            <input id="productName" name="productName" type="text" placeholder="e.g. Beans" required maxlength="100">
+          </div>
+          <div class="field">
+            <label for="packQuantity">Number of bags / packs</label>
+            <input id="packQuantity" name="packQuantity" type="number" min="0.01" step="any" value="1" required>
+          </div>
+          <div class="field">
+            <label for="muduPerPack">Mudu in one bag / pack</label>
+            <input id="muduPerPack" name="muduPerPack" type="number" min="0.01" step="any" value="40" required>
+          </div>
+          <div class="field">
+            <label for="unitsPerMudu">Units / pieces in one mudu</label>
+            <input id="unitsPerMudu" name="unitsPerMudu" type="number" min="0.01" step="any" value="16" required>
+          </div>
+          <div class="field">
+            <label for="unitPrice">Selling price per unit (₦)</label>
+            <input id="unitPrice" name="unitPrice" type="number" min="0" step="0.01" placeholder="e.g. 250" required>
+          </div>
+        </div>
+        <div class="calc-box" aria-live="polite">
+          <div>Total mudu in stock: <strong id="previewMudu">40</strong></div>
+          <div>Total units / pieces in stock: <strong id="previewUnits">640</strong></div>
+          <div>Estimated stock value: <strong id="previewValue">₦0.00</strong></div>
+        </div>
+        <p class="hint">Example: 1 bag × 40 mudu per bag × 16 units per mudu = 640 units. The stock value is total units × selling price per unit.</p>
+        <div class="actions">
+          <button class="btn btn-primary" id="saveButton" type="submit">Save Product</button>
+          <button class="btn btn-secondary" id="cancelEdit" type="button" hidden>Cancel Edit</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>📦 Products in Store</h2>
+      <div class="field" style="margin-bottom:14px;max-width:420px">
+        <label for="searchProducts">Search products</label>
+        <input id="searchProducts" type="search" placeholder="Type a product name…">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Serial No.</th><th>Product</th><th>Bags / Packs</th><th>Mudu</th><th>Total Units</th><th>Price / Unit</th><th>Stock Value</th><th>Actions</th></tr></thead>
+          <tbody id="productsBody"><tr><td colspan="8" class="empty">No products saved yet. Use “Add Product” above to start.</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint">Records are saved in this browser on this device. Clearing browser data or switching devices may remove or hide these records; this version is not yet synced to an online database.</p>
+    </section>
+    <a class="back" href="index-2-updated.html">← Back to Home</a>
   </main>
 
   <footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
-  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+    const STORAGE_KEY = 'bna_store_inventory_v1';
+    const form = document.getElementById('productForm');
+    const fields = ['productName','packQuantity','muduPerPack','unitsPerMudu','unitPrice'];
+    const byId = id => document.getElementById(id);
+    let products = loadProducts();
+    let editingId = null;
+
+    function loadProducts() {
+      try {
+        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        return Array.isArray(value) ? value : [];
+      } catch (error) { return []; }
+    }
+    function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); }
+    function number(id) { return Math.max(0, Number(byId(id).value) || 0); }
+    function money(value) { return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN'}).format(Number(value)||0); }
+    function calculations(source) {
+      const packs = Math.max(0, Number(source.packQuantity)||0);
+      const muduPerPack = Math.max(0, Number(source.muduPerPack)||0);
+      const unitsPerMudu = Math.max(0, Number(source.unitsPerMudu)||0);
+      const unitPrice = Math.max(0, Number(source.unitPrice)||0);
+      const mudu = packs * muduPerPack;
+      const units = mudu * unitsPerMudu;
+      return { packs, muduPerPack, unitsPerMudu, unitPrice, mudu, units, stockValue: units * unitPrice };
+    }
+    function formValues() {
+      return { name:byId('productName').value.trim(), packQuantity:number('packQuantity'), muduPerPack:number('muduPerPack'), unitsPerMudu:number('unitsPerMudu'), unitPrice:number('unitPrice') };
+    }
+    function updatePreview() {
+      const c = calculations(formValues());
+      byId('previewMudu').textContent = c.mudu.toLocaleString();
+      byId('previewUnits').textContent = c.units.toLocaleString();
+      byId('previewValue').textContent = money(c.stockValue);
+    }
+    function renderProducts() {
+      const query = byId('searchProducts').value.trim().toLowerCase();
+      const visible = products.filter(p => p.name.toLowerCase().includes(query));
+      byId('productCount').textContent = products.length.toLocaleString();
+      byId('totalUnits').textContent = products.reduce((sum,p)=>sum + calculations(p).units,0).toLocaleString();
+      byId('totalValue').textContent = money(products.reduce((sum,p)=>sum + calculations(p).stockValue,0));
+      const body = byId('productsBody');
+      if (!visible.length) {
+        body.innerHTML = `<tr><td colspan="8" class="empty">${products.length ? 'No matching products found.' : 'No products saved yet. Use “Add Product” above to start.'}</td></tr>`;
+        return;
+      }
+      body.innerHTML = visible.map((p,index) => {
+        const c = calculations(p);
+        const serial = products.findIndex(item=>item.id===p.id)+1;
+        return `<tr>
+          <td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td>
+          <td>${c.packs.toLocaleString()}</td><td>${c.mudu.toLocaleString()}</td>
+          <td>${c.units.toLocaleString()}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td>
+          <td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${p.id}">Edit</button><button class="btn btn-danger" type="button" data-delete="${p.id}">Delete</button></div></td>
+        </tr>`;
+      }).join('');
+      body.querySelectorAll('[data-edit]').forEach(button=>button.addEventListener('click',()=>editProduct(button.dataset.edit)));
+      body.querySelectorAll('[data-delete]').forEach(button=>button.addEventListener('click',()=>deleteProduct(button.dataset.delete)));
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    }
+    function resetForm() {
+      form.reset();
+      byId('packQuantity').value = '1'; byId('muduPerPack').value = '40'; byId('unitsPerMudu').value = '16';
+      editingId = null; byId('formTitle').textContent = '➕ Add Product'; byId('saveButton').textContent = 'Save Product'; byId('cancelEdit').hidden = true;
+      updatePreview();
+    }
+    function editProduct(id) {
+      const p = products.find(item=>item.id===id); if (!p) return;
+      editingId = id;
+      byId('productName').value = p.name; byId('packQuantity').value = p.packQuantity;
+      byId('muduPerPack').value = p.muduPerPack; byId('unitsPerMudu').value = p.unitsPerMudu; byId('unitPrice').value = p.unitPrice;
+      byId('formTitle').textContent = '✏️ Edit Product'; byId('saveButton').textContent = 'Update Product'; byId('cancelEdit').hidden = false;
+      updatePreview(); byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    function deleteProduct(id) {
+      const p = products.find(item=>item.id===id); if (!p) return;
+      if (!confirm(`Delete “${p.name}” from the store records?`)) return;
+      products = products.filter(item=>item.id!==id); persist(); renderProducts();
+      if (editingId===id) resetForm();
+    }
+    fields.slice(1).forEach(id=>byId(id).addEventListener('input',updatePreview));
+    byId('unitPrice').addEventListener('input',updatePreview);
+    byId('searchProducts').addEventListener('input',renderProducts);
+    byId('cancelEdit').addEventListener('click',resetForm);
+    form.addEventListener('submit',event=>{
+      event.preventDefault();
+      const value = formValues();
+      if (!value.name || value.packQuantity<=0 || value.muduPerPack<=0 || value.unitsPerMudu<=0 || value.unitPrice<0) {
+        alert('Please enter a product name, valid quantities, and a price of zero or more.'); return;
+      }
+      if (editingId) {
+        const index = products.findIndex(p=>p.id===editingId);
+        if (index>=0) products[index] = {...products[index], ...value, updatedAt:new Date().toISOString()};
+      } else {
+        products.push({...value, id:(window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2), createdAt:new Date().toISOString()});
+      }
+      persist(); renderProducts(); resetForm();
+    });
+    updatePreview(); renderProducts();
+  </script>
 </body>
 </html>

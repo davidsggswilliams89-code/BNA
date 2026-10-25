@@ -1,14 +1,123 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#0759b8"><title>Account | BNA, Busau Business</title>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BNA, Busau Business — Account</title>
 <style>
-:root{--blue:#0759b8;--dark:#064a99;--bg:#f4f7fb;--text:#172033;--muted:#687386;--border:#e3e8f0}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}.top{height:46px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;background:#fff;border-bottom:1px solid var(--border);font-weight:800;color:var(--blue)}.track{padding-left:100%;animation:move 13s linear infinite}@keyframes move{from{transform:translateX(0)}to{transform:translateX(-100%)}}.nav{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;background:linear-gradient(135deg,var(--dark),#1877d5);position:sticky;top:0;z-index:10}.nav a{display:flex;justify-content:center;align-items:center;min-height:46px;border-radius:9px;background:#ffffff20;color:#fff;text-decoration:none;font-weight:800}main{width:min(100% - 28px,1000px);margin:22px auto 45px}.title h1{margin:0;color:var(--dark);font-size:1.45rem}.title p{margin:6px 0 16px;color:var(--muted);font-size:.88rem}.filters{background:#fff;border:1px solid var(--border);border-radius:15px;padding:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}.filter{border:1px solid #d5dce7;background:#fff;border-radius:9px;padding:10px;font-weight:800;color:#465166;cursor:pointer}.filter.active{background:var(--blue);color:#fff;border-color:var(--blue)}.total{background:linear-gradient(135deg,var(--dark),#1877d5);color:#fff;border-radius:20px;padding:25px 20px;margin-bottom:18px}.total small{font-weight:700;opacity:.85}.amount{font-size:2rem;font-weight:900;margin-top:6px}.period{font-size:.8rem;opacity:.82;margin-top:6px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.card{background:#fff;border:1px solid var(--border);border-radius:15px;padding:18px}.card h2{font-size:1rem;margin:0 0 8px}.label{color:var(--muted);font-size:.78rem}.value{font-size:1.3rem;font-weight:900;color:var(--dark);margin-top:5px}.note{margin-top:18px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px;color:var(--muted);font-size:.82rem;line-height:1.5}footer{text-align:center;padding:18px;color:#758094;font-size:.8rem}@media(max-width:560px){.grid{grid-template-columns:1fr}.amount{font-size:1.75rem}}
-</style></head><body>
-<div class="top"><div class="track">BNA, Busau Business &nbsp; • &nbsp; BNA, Busau Business &nbsp; • &nbsp; BUSINESS ACCOUNT</div></div>
-<nav class="nav"><a href="account.html">👤 Account</a><a href="store.html">🏪 Store</a></nav>
-<main><div class="title"><h1>Business Account</h1><p>Sales value from Drinks, Cereal, POS and Wi-Fi Hotspot.</p></div>
-<div class="filters"><button class="filter active" data-period="day">Today</button><button class="filter" data-period="week">This Week</button><button class="filter" data-period="month">This Month</button></div>
-<section class="total"><small>MAIN COMPANY ACCOUNT — TOTAL SALES VALUE</small><div class="amount" id="mainTotal">₦0.00</div><div class="period" id="periodLabel">Showing today's total</div></section>
-<section class="grid"><article class="card"><h2>🥤 Drinks Balance</h2><div class="label">Sales value</div><div class="value" id="drinks">₦0.00</div></article><article class="card"><h2>🌾 Cereal Balance</h2><div class="label">Sales value</div><div class="value" id="cereal">₦0.00</div></article><article class="card"><h2>💳 POS Balance</h2><div class="label">Sales value</div><div class="value" id="pos">₦0.00</div></article><article class="card"><h2>📶 Wi-Fi Balance</h2><div class="label">Sales value</div><div class="value" id="wifi">₦0.00</div></article></section>
-<div class="note"><strong>Main total:</strong> Drinks + Cereal + POS + Wi-Fi Hotspot. The four balances underneath show each container's sales value. Day, week and month filters are ready for the Firebase sales records.</div></main>
-<footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
-<script>document.getElementById("year").textContent=new Date().getFullYear();const sales={day:{drinks:0,cereal:0,pos:0,wifi:0,label:"today's total"},week:{drinks:0,cereal:0,pos:0,wifi:0,label:"this week's total"},month:{drinks:0,cereal:0,pos:0,wifi:0,label:"this month's total"}};const money=n=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN"}).format(n);function render(p){const s=sales[p],t=s.drinks+s.cereal+s.pos+s.wifi;document.getElementById("mainTotal").textContent=money(t);document.getElementById("periodLabel").textContent="Showing "+s.label;["drinks","cereal","pos","wifi"].forEach(k=>document.getElementById(k).textContent=money(s[k]))}document.querySelectorAll(".filter").forEach(b=>b.onclick=()=>{document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");render(b.dataset.period)});render("day");</script></body></html>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f4f7fb;color:#12233f}
+.marquee{position:fixed;top:0;left:0;right:0;height:44px;background:#fff;z-index:20;overflow:hidden;display:flex;align-items:center;border-bottom:1px solid #e5eaf1}
+.marquee-track{white-space:nowrap;display:inline-block;padding-left:100%;animation:scroll 14s linear infinite;font-weight:800;font-size:18px;color:#0b4ea2}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.nav{position:fixed;top:44px;left:0;right:0;height:62px;background:#0757b8;z-index:19;display:flex;justify-content:center;align-items:center;gap:12px;padding:8px}
+.nav a{color:#fff;text-decoration:none;background:#0b69d1;border:1px solid rgba(255,255,255,.3);padding:12px 28px;border-radius:10px;font-weight:800;box-shadow:0 2px 5px rgba(0,0,0,.15)}
+.nav a.active{background:#fff;color:#0757b8}
+main{max-width:1050px;margin:0 auto;padding:136px 16px 40px}
+.title{text-align:center;margin-bottom:18px}
+.title h1{margin:0;font-size:30px}
+.title p{margin:8px 0;color:#66758b}
+.filters{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:20px 0 24px}
+.filters button{border:0;border-radius:10px;padding:12px 22px;background:#dfe8f4;color:#17304f;font-weight:800;cursor:pointer}
+.filters button.active{background:#0757b8;color:#fff}
+.main-card{background:linear-gradient(135deg,#0757b8,#0b78df);color:#fff;border-radius:20px;padding:28px;text-align:center;box-shadow:0 12px 28px rgba(7,87,184,.22);margin-bottom:22px}
+.main-card .label{font-size:15px;font-weight:800;letter-spacing:.08em}
+.main-card .period{opacity:.85;margin-top:6px}
+.main-total{font-size:42px;font-weight:900;margin-top:12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+.balance{background:#fff;border-radius:16px;padding:20px;box-shadow:0 5px 18px rgba(20,43,77,.08);border:1px solid #e7edf5}
+.balance .icon{font-size:30px}
+.balance h2{font-size:17px;margin:10px 0 8px}
+.amount{font-size:25px;font-weight:900;color:#0757b8}
+.note{text-align:center;color:#68788e;font-size:13px;margin-top:20px}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.nav{gap:7px}.nav a{padding:10px 20px}.main-total{font-size:34px}.grid{grid-template-columns:1fr}.title h1{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="marquee"><div class="marquee-track">BNA, Busau Business</div></div>
+
+<nav class="nav">
+  <a href="account.html" class="active">👤 Account</a>
+  <a href="store.html">🏪 Store</a>
+</nav>
+
+<main>
+  <section class="title">
+    <h1>Business Account</h1>
+    <p>Combined sales account for all four business containers.</p>
+  </section>
+
+  <div class="filters" aria-label="Sales period">
+    <button class="active" data-period="today">Today</button>
+    <button data-period="week">This Week</button>
+    <button data-period="month">This Month</button>
+  </div>
+
+  <section class="main-card">
+    <div class="label">MAIN COMPANY ACCOUNT</div>
+    <div class="period" id="periodLabel">Today</div>
+    <div class="main-total" id="mainTotal">₦0.00</div>
+  </section>
+
+  <section class="grid">
+    <article class="balance">
+      <div class="icon">🥤</div>
+      <h2>Drinks Balance</h2>
+      <div class="amount" id="drinksBalance">₦0.00</div>
+    </article>
+    <article class="balance">
+      <div class="icon">🌾</div>
+      <h2>Cereal Balance</h2>
+      <div class="amount" id="cerealBalance">₦0.00</div>
+    </article>
+    <article class="balance">
+      <div class="icon">💳</div>
+      <h2>POS Balance</h2>
+      <div class="amount" id="posBalance">₦0.00</div>
+    </article>
+    <article class="balance">
+      <div class="icon">📶</div>
+      <h2>Wi-Fi Balance</h2>
+      <div class="amount" id="wifiBalance">₦0.00</div>
+    </article>
+  </section>
+
+  <div class="note">Main Company Account = Drinks + Cereal + POS + Wi-Fi Hotspot</div>
+</main>
+
+<script>
+const sales = {
+  today:{drinks:0,cereal:0,pos:0,wifi:0},
+  week:{drinks:0,cereal:0,pos:0,wifi:0},
+  month:{drinks:0,cereal:0,pos:0,wifi:0}
+};
+
+const money = n => new Intl.NumberFormat('en-NG',{
+  style:'currency',currency:'NGN',minimumFractionDigits:2
+}).format(Number(n)||0);
+
+const labels = {today:'Today',week:'This Week',month:'This Month'};
+
+function render(period){
+  const x=sales[period] || sales.today;
+  const total=(+x.drinks||0)+(+x.cereal||0)+(+x.pos||0)+(+x.wifi||0);
+  document.getElementById('periodLabel').textContent=labels[period];
+  document.getElementById('mainTotal').textContent=money(total);
+  document.getElementById('drinksBalance').textContent=money(x.drinks);
+  document.getElementById('cerealBalance').textContent=money(x.cereal);
+  document.getElementById('posBalance').textContent=money(x.pos);
+  document.getElementById('wifiBalance').textContent=money(x.wifi);
+}
+
+document.querySelectorAll('.filters button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.filters button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    render(btn.dataset.period);
+  });
+});
+render('today');
+</script>
+</body>
+</html>
