@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0759b8">
+<title>BNA, Busau Business</title>
+<style>
+:root{--blue:#0759b8;--blue-dark:#064a99;--blue-light:#1877d5;--cream:#fffaf0;--text:#202820}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--cream);color:var(--text)}
+.top-marquee{height:42px;display:flex;align-items:center;overflow:hidden;white-space:nowrap;background:#fff;color:var(--blue);border-bottom:1px solid #e5e9df;font-weight:800;letter-spacing:1px}
+.marquee-track{display:inline-block;padding-left:100%;animation:marquee 12s linear infinite}
+.marquee-track span{display:inline-block;padding-right:80px}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.nav-banner{position:sticky;top:0;z-index:1000;padding:10px 8px;background:radial-gradient(circle at 10% 20%,#ffffff24,transparent 25%),radial-gradient(circle at 90% 80%,#ffffff1a,transparent 25%),linear-gradient(135deg,var(--blue-dark),var(--blue-light));box-shadow:0 3px 12px #00000026}
+.nav-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;max-width:1100px;margin:0 auto}
+.nav-button{min-height:52px;display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 5px;border:1px solid #ffffff47;border-radius:10px;background:#ffffff1f;color:#fff;text-decoration:none;font-size:.78rem;font-weight:700;text-align:center;transition:transform .18s,background .18s}
+.nav-button:hover,.nav-button:active{transform:translateY(-2px);background:#ffffff3b}
+main{width:min(100% - 32px,900px);margin:28px auto 40px}
+.section-title{margin:0 0 18px;text-align:center;font-size:1.25rem;color:var(--blue-dark)}
+.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.category{min-height:155px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px 12px;border:1px solid #e5e9df;border-radius:18px;background:#fff;box-shadow:0 5px 16px #0759b814;text-align:center;text-decoration:none;color:inherit;transition:transform .2s,box-shadow .2s}
+.category:hover,.category:focus-visible{transform:translateY(-3px);box-shadow:0 9px 22px #0759b821;outline:2px solid #8ab8f5}
+.category-icon{width:64px;height:64px;display:grid;place-items:center;border-radius:50%;background:#eaf3ff;font-size:2rem}
+.category h2{margin:0;color:var(--blue-dark);font-size:1.08rem}
+footer{padding:18px 16px;color:#647067;text-align:center;font-size:.85rem}
+@media(max-width:650px){.nav-buttons{grid-template-columns:repeat(3,minmax(0,1fr))}.nav-button{min-height:48px;font-size:.72rem}}
+@media(max-width:360px){.nav-buttons{gap:5px}.nav-button{font-size:.67rem;padding:6px 3px}main{width:calc(100% - 22px)}.category-grid{gap:10px}.category{min-height:135px}}
+</style>
+</head>
+<body>
+<header class="top-marquee" aria-label="Business name"><div class="marquee-track"><span>B-N-A Gusau Business</span><span>B-N-A Gusau Business</span></div></header>
+<nav class="nav-banner" aria-label="Main navigation"><div class="nav-buttons">
+<a class="nav-button" href="account.html">👤 Account</a>
+<a class="nav-button" href="store.html">🏪 Store</a>
+<a class="nav-button" href="sales.html">🧾 Sales</a>
+</div></nav>
+<main>
+<h1 class="section-title">Business Management Center</h1>
+<section class="category-grid" aria-label="Business tools">
+<a class="category" id="crm" href="crm.html"><div class="category-icon" aria-hidden="true">🧾</div><h2>CRM</h2></a>
+<a class="category" id="drinks" href="drinks.html"><div class="category-icon" aria-hidden="true">🥤</div><h2>Drinks</h2></a>
+<a class="category" id="pos" href="pos.html"><div class="category-icon" aria-hidden="true">💳</div><h2>POS</h2></a>
+<a class="category" id="wifi" href="wifi.html"><div class="category-icon" aria-hidden="true">📶</div><h2>Wi-Fi Hotspot</h2></a>
+</section>
+</main>
+<footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
+<script>document.getElementById("year").textContent=new Date().getFullYear();</script>
+</body>
+</html>
