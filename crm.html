@@ -30,11 +30,15 @@ select:focus,input:focus{outline:2px solid #b7d2ff;border-color:var(--blue)}
 .btn{border:0;border-radius:11px;min-height:43px;padding:10px 15px;font:inherit;font-weight:700;cursor:pointer;transition:filter .15s,transform .15s}
 .btn:active{transform:scale(.98)}.btn:hover{filter:brightness(.96)}
 .primary{background:#171717;color:#fff}.blue{background:var(--blue);color:#fff}.light{background:#eef2f7;color:#263449}.danger{background:#fff0f0;color:var(--danger)}.outline{border:1px solid #d0d5dd;background:#fff;color:#344054}
-.product-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:0 0 18px}
-.product-option{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;min-height:64px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;text-align:left;cursor:pointer;color:var(--text)}
-.product-option:active{transform:scale(.99)}
-.product-option .option-name{font-weight:800;overflow-wrap:anywhere}
-.product-option .option-price{font-size:.9rem;color:var(--green);font-weight:700}
+.category-buttons{display:flex;gap:8px;overflow-x:auto;padding:2px 1px 10px;margin-bottom:8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.category-button{flex:0 0 auto;border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:10px 15px;min-height:42px;font:inherit;font-size:.9rem;font-weight:800;white-space:nowrap;cursor:pointer}
+.category-button.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.product-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:0 0 18px;max-height:390px;overflow-y:auto;align-content:start;padding:2px}
+.product-option{display:flex;align-items:center;gap:7px;min-height:38px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;text-align:left;cursor:pointer;color:var(--text);width:100%;min-width:0}
+.product-option:active{background:#f7f9fc}
+.product-option .option-name{font-weight:700;font-size:.82rem;line-height:1.2;overflow-wrap:anywhere;flex:1;min-width:0}
+.product-option input[type="checkbox"]{width:18px;min-width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+.product-option:has(input:checked){background:#effaf3}
 .product-option:disabled{opacity:.45;cursor:not-allowed}
 .no-products{padding:14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);text-align:center}
 .cart-list{display:flex;flex-direction:column}
@@ -67,8 +71,11 @@ footer{text-align:center;padding:18px;color:#6b7482;font-size:.85rem}
 dialog{width:min(92vw,440px);border:0;border-radius:18px;padding:22px;box-shadow:0 20px 70px #0004}
 dialog::backdrop{background:#10182888}
 dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+@media(min-width:651px) and (max-width:900px){.product-options{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:650px){
  main{width:calc(100% - 20px);margin-top:17px}
+ .product-options{grid-template-columns:repeat(2,minmax(0,1fr));max-height:390px}
+ .product-option{min-height:36px;padding:5px 7px}
  .cart-item{grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:18px 0}
  .product-info{grid-column:1/-1}
  .quantity-area{grid-column:1;grid-row:2}
@@ -92,10 +99,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   <section class="bill">
     
     
-    <div class="add-row">
-      <input id="productSearch" type="search" placeholder="Search product name, e.g. beans…" aria-label="Search products">
-    </div>
-    <div id="productOptions" class="product-options" aria-label="Store products"></div>
+    <div id="categoryButtons" class="category-buttons" aria-label="Product categories"></div>
+    <div id="productOptions" class="product-options" aria-label="Products in selected category"></div>
     <div id="cartList" class="cart-list"><div class="empty">Your bill is empty. Choose a product above to begin.</div></div>
     <div class="total-row"><strong>TOTAL TO PAY</strong><div class="total-amount" id="grandTotal">₦0.00</div></div>
     <button class="btn primary complete" id="completeSale" type="button">Complete Sale</button>
@@ -124,6 +129,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   let products = [];
   let cart = [];
   let editingCartId = null;
+  let selectedCategory = 'Cereal';
   let recentSales = loadJson(SALES_KEY, []);
 
   function loadJson(key, fallback) {
@@ -145,42 +151,81 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     products = loadJson(STORAGE_KEY, []);
     if (!Array.isArray(products)) products = [];
     products = products.filter(p => p && p.id != null && typeof p.name === 'string');
+    renderCategoryButtons();
     renderProductOptions();
     renderCart();
     if (!products.length) {
       setNotice('No products were found in store.html records on this browser. Open store.html, add and save products, then return here. Both pages must be hosted on the same website origin.', 'error');
     } else {
-      setNotice('Loaded ' + products.length + ' product type(s) from Store. Tap a product name to add it to the bill.', 'success');
+      setNotice('Choose Cereal or Drinks, then tick products to add them to the bill.', 'success');
     }
+  }
+
+  function productCategory(p) {
+    const saved = String(p.category || p.categoryName || p.productCategory || p.group || p.type || '').trim().toLocaleLowerCase();
+    const name = String(p.name || '').toLocaleLowerCase();
+    // This CRM screen intentionally has only the two requested categories.
+    const drinkPattern = /\b(drinks?|beverages?|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt|energy drink)\b/;
+    if (drinkPattern.test(saved) || drinkPattern.test(name)) return 'Drinks';
+    // Beans, rice, grains and other non-drink stock are shown in Cereal for now.
+    return 'Cereal';
+  }
+
+  function renderCategoryButtons() {
+    const root = $('categoryButtons');
+    const categories = ['Cereal', 'Drinks'];
+    if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
+    root.innerHTML = '';
+    categories.forEach(category => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'category-button' + (category === selectedCategory ? ' active' : '');
+      button.textContent = category;
+      button.setAttribute('aria-pressed', String(category === selectedCategory));
+      button.addEventListener('click', () => {
+        selectedCategory = category;
+        renderCategoryButtons();
+        renderProductOptions();
+      });
+      root.appendChild(button);
+    });
   }
 
   function renderProductOptions() {
     const root = $('productOptions');
-    const query = $('productSearch').value.trim().toLocaleLowerCase();
-    const matches = products.filter(p => p.name.toLocaleLowerCase().includes(query));
+    const matches = products.filter(p => productCategory(p) === selectedCategory);
     root.innerHTML = '';
     if (!matches.length) {
       const empty = document.createElement('div');
       empty.className = 'no-products';
-      empty.textContent = query ? 'No matching products found.' : 'No products available.';
+      empty.textContent = 'No products in this category.';
       root.appendChild(empty);
       return;
     }
     matches.forEach(p => {
       const info = stockInfo(p);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'product-option';
-      button.disabled = info.available <= 0;
+      const selected = cart.some(item => String(item.productId) === String(p.id));
+      const row = document.createElement('label');
+      row.className = 'product-option';
       const name = document.createElement('span');
       name.className = 'option-name';
       name.textContent = p.name;
-      const price = document.createElement('span');
-      price.className = 'option-price';
-      price.textContent = money(info.unitPrice);
-      button.append(name, price);
-      button.addEventListener('click', () => addProductById(String(p.id)));
-      root.appendChild(button);
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selected;
+      checkbox.disabled = info.available <= 0 && !selected;
+      checkbox.setAttribute('aria-label', 'Add ' + p.name + ' to bill');
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          addProductById(String(p.id));
+        } else {
+          cart = cart.filter(item => String(item.productId) !== String(p.id));
+          renderCart();
+          setNotice(p.name + ' removed from the bill.', 'success');
+        }
+      });
+      row.append(name, checkbox);
+      root.appendChild(row);
     });
   }
 
@@ -205,7 +250,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     const root = $('cartList');
     $('grandTotal').textContent = money(cartTotal());
     if (!cart.length) {
-      root.innerHTML = '';
+      root.innerHTML = '<div class="empty">Your bill is empty. Tick a product above to begin.</div>';
+      renderProductOptions();
       return;
     }
     root.innerHTML = '';
@@ -245,6 +291,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       actions.append(edit,del);totalCol.append(line,lineLabel,actions);
       row.append(infoCol,qtyCol,totalCol);root.appendChild(row);
     });
+    renderProductOptions();
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function completeSale() {
@@ -276,6 +323,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   function renderHistory() {
     const root=$('salesHistory');
+    // This simplified CRM layout does not include a sales-history container.
+    if (!root) return;
     if(!recentSales.length){root.textContent='No completed sales recorded yet.';return;}
     root.innerHTML='';
     recentSales.slice(0,8).forEach(sale=>{
@@ -285,9 +334,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       row.append(left,right);root.appendChild(row);
     });
   }
-  $('productSearch').addEventListener('input', renderProductOptions);
   $('completeSale').addEventListener('click',completeSale);
-  $('year').textContent=new Date().getFullYear();
+  const yearElement = $('year');
+  if (yearElement) yearElement.textContent = new Date().getFullYear();
   // A refresh lets the CRM pick up products added/edited in store.html.
   window.addEventListener('focus',readProducts);
   window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY)readProducts();});
