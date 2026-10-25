@@ -244,8 +244,10 @@
       const unitsPerMudu = Math.max(0, Number(source.unitsPerMudu)||0);
       const unitPrice = Math.max(0, Number(source.unitPrice)||0);
       const mudu = packs * muduPerPack;
-      const units = mudu * unitsPerMudu;
-      return { packs, muduPerPack, unitsPerMudu, unitPrice, mudu, units, stockValue: units * unitPrice };
+      const totalUnits = mudu * unitsPerMudu;
+      const soldUnits = Math.max(0, Number(source.soldUnits) || 0);
+      const units = Math.max(0, totalUnits - soldUnits);
+      return { packs, muduPerPack, unitsPerMudu, unitPrice, mudu, units, totalUnits, soldUnits, stockValue: units * unitPrice };
     }
     function formValues() {
       return { name:byId('productName').value.trim(), packQuantity:number('packQuantity'), muduPerPack:number('muduPerPack'), unitsPerMudu:number('unitsPerMudu'), unitPrice:number('unitPrice') };
@@ -273,7 +275,7 @@
         return `<tr>
           <td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td>
           <td>${c.packs.toLocaleString()}</td><td>${c.mudu.toLocaleString()}</td>
-          <td>${c.units.toLocaleString()}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td>
+          <td>${c.units.toLocaleString()}${c.soldUnits ? `<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>` : ''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td>
           <td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${p.id}">Edit</button><button class="btn btn-danger" type="button" data-delete="${p.id}">Delete</button></div></td>
         </tr>`;
       }).join('');
