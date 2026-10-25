@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b5ed7">
+  <title>Store | BNA, Busau Business</title>
+  <style>
+    :root {
+      --blue:#0b5ed7;
+      --blue-dark:#084298;
+      --cream:#f7f9fc;
+      --text:#172033;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      font-family:Arial,Helvetica,sans-serif;
+      background:var(--cream);
+      color:var(--text);
+    }
+    .ticker {
+      height:48px;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      white-space:nowrap;
+      background:#fff;
+      border-bottom:1px solid #e6eaf0;
+    }
+    .ticker-track {
+      display:inline-block;
+      padding-left:100%;
+      animation:move 12s linear infinite;
+      font-weight:800;
+      color:var(--blue-dark);
+      letter-spacing:.6px;
+    }
+    @keyframes move {
+      from { transform:translateX(0); }
+      to { transform:translateX(-100%); }
+    }
+    .nav {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      max-width:560px;
+      margin:0 auto;
+      gap:6px;
+      padding:8px;
+      background:linear-gradient(135deg,var(--blue),var(--blue-dark));
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+    .nav a {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:48px;
+      padding:8px 4px;
+      color:#fff;
+      text-decoration:none;
+      font-size:.82rem;
+      font-weight:700;
+      border-radius:9px;
+      background:rgba(255,255,255,.12);
+    }
+    .nav a:hover { background:rgba(255,255,255,.24); }
+    main {
+      width:min(100% - 28px,1100px);
+      margin:22px auto 40px;
+    }
+    .page-title { text-align:center; margin:0 0 6px; color:var(--blue-dark); }
+    .intro { text-align:center; margin:0 auto 20px; max-width:760px; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+    .summary { background:#fff; border:1px solid #e4eaf3; border-radius:15px; padding:15px; box-shadow:0 4px 14px rgba(20,40,80,.05); }
+    .summary small { display:block; color:#657186; font-weight:700; margin-bottom:7px; }
+    .summary strong { color:var(--blue-dark); font-size:1.25rem; overflow-wrap:anywhere; }
+    .panel { background:#fff; border:1px solid #e4eaf3; border-radius:14px; padding:12px; margin:12px 0; box-shadow:0 6px 20px rgba(20,40,80,.06); }
+    .panel h2 { margin:0 0 10px; color:var(--blue-dark); font-size:1rem; }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .field { display:flex; flex-direction:column; gap:4px; }
+    .field label { font-size:.82rem; font-weight:700; color:#344054; }
+    .field input { width:100%; min-height:34px; border:1px solid #cfd8e6; border-radius:7px; padding:6px 9px; font:inherit; font-size:.9rem; background:#fff; color:var(--text); }
+    .field input:focus { outline:2px solid #b7d2ff; border-color:var(--blue); }
+    .field select, .field input { width:100%; min-height:34px; border:1px solid #cfd8e6; border-radius:7px; padding:6px 9px; font:inherit; font-size:.9rem; background:#fff; color:var(--text); }
+    .field input:focus, .field select:focus { outline:2px solid #b7d2ff; border-color:var(--blue); }
+    .sub-quantity-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:7px; align-items:end; padding:8px; margin-top:7px; border:1px solid #e4eaf3; border-radius:9px; background:#f9fbfe; }
+    .sub-quantity-row .field { min-width:0; }
+    .remove-level { min-height:32px; padding:6px 8px; font-size:.82rem; }
+    .add-product-trigger { display:flex; justify-content:center; margin:0 0 14px; }
+    .add-product-trigger .btn { min-width:130px; }
+    #productFormPanel[hidden] { display:none; }
+    .level-number { display:block; color:#667085; font-size:.76rem; font-weight:700; margin-bottom:4px; }
+    .category-tag { display:inline-block; border-radius:999px; padding:4px 8px; background:#eaf2ff; color:#084298; font-size:.8rem; font-weight:700; }
+
+    .full { grid-column:1/-1; }
+    .calc-box { display:none; }
+    #syncStatus { display:none !important; }
+    .calc-box { background:#eef5ff; border-radius:12px; padding:12px 14px; margin-top:14px; color:#23456f; line-height:1.7; }
+    .actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+    .btn { border:0; border-radius:7px; min-height:34px; padding:7px 10px; font:inherit; font-size:.86rem; font-weight:700; cursor:pointer; }
+    .btn-primary { background:var(--blue); color:#fff; }
+    .btn-secondary { background:#eaf0f8; color:#20334f; }
+    .btn-danger { background:#fff0f0; color:#b42318; }
+    .table-wrap { width:100%; overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width:820px; }
+    th,td { padding:12px 10px; text-align:left; border-bottom:1px solid #e8edf4; vertical-align:middle; }
+    th { background:#f3f7fc; color:#344054; font-size:.85rem; }
+    td { font-size:.9rem; }
+    .empty { text-align:center; padding:24px; color:#667085; }
+    .hint { font-size:.86rem; color:#667085; margin:8px 0 0; }
+    .notice { border-radius:10px; padding:11px 13px; margin:12px 0; background:#fff8e6; color:#795b12; font-size:.9rem; }
+    .back { margin-top:18px; }
+    .card {
+      background:#fff;
+      border-radius:20px;
+      padding:34px 20px;
+      text-align:center;
+      box-shadow:0 8px 25px rgba(20,40,80,.09);
+    }
+    .icon {
+      width:82px;
+      height:82px;
+      margin:0 auto 18px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:#eaf2ff;
+      font-size:2.6rem;
+    }
+    h1 { margin:0 0 10px; color:var(--blue-dark); }
+    p { line-height:1.6; color:#5d6878; }
+    .back {
+      display:inline-block;
+      margin-top:16px;
+      padding:12px 20px;
+      border-radius:10px;
+      background:var(--blue);
+      color:#fff;
+      text-decoration:none;
+      font-weight:700;
+    }
+    footer {
+      text-align:center;
+      padding:18px;
+      color:#6b7482;
+      font-size:.85rem;
+    }
+    @media(max-width:650px) {
+      .nav { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .nav a { min-height:44px; }
+      .summary-grid { grid-template-columns:1fr; }
+      .form-grid { grid-template-columns:1fr; }
+      .sub-quantity-row { grid-template-columns:1fr; }
+      .full { grid-column:auto; }
+      .panel { padding:14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ticker">
+    <div class="ticker-track">B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business</div>
+  </div>
+
+  <nav class="nav" aria-label="Main navigation">
+    <a href="account.html">👤 Account</a>
+    <a href="store.html">🏪 Store</a>
+  </nav>
+
+  <main>
+
+    <section class="summary-grid" aria-label="Inventory summary">
+      <div class="summary"><small>PRODUCT TYPES</small><strong id="productCount">0</strong></div>
+      <div class="summary"><small>TOTAL STOCK UNITS</small><strong id="totalUnits">0</strong></div>
+      <div class="summary"><small>TOTAL STOCK VALUE</small><strong id="totalValue">₦0.00</strong></div>
+    </section>
+
+    <div class="add-product-trigger"><button class="btn btn-primary" id="showProductForm" type="button">＋ Add Product</button></div>
+    <section class="panel" id="productFormPanel" hidden>
+      <h2 id="formTitle">➕ Add Product</h2>
+      <form id="productForm">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="productName">Product name</label>
+            <input id="productName" name="productName" type="text" placeholder="" required maxlength="100">
+          </div>
+          <div class="field full">
+            <label for="category">Category</label>
+            <select id="category" name="category" required>
+              <option value="Cereal">Cereal</option>
+              <option value="Drinks">Drinks</option>
+            </select>
+          </div>
+          <div class="field full">
+            <div id="subQuantityRows"></div>
+            <div class="actions" style="margin-top:10px">
+              <button class="btn btn-secondary" id="addSubQuantity" type="button">＋ Add section</button>
+            </div>
+          </div>
+          <div class="field full">
+            <label id="unitPriceLabel" for="unitPrice">Price (₦)</label>
+            <input id="unitPrice" name="unitPrice" type="number" min="0" step="0.01" placeholder="" required>
+          </div>
+        </div>
+        <div class="calc-box" aria-live="polite">
+          <div>Total quantity in smallest units: <strong id="previewUnits">0</strong></div>
+          <div>Conversion: <strong id="previewConversion">Add a quantity section</strong></div>
+          <div>Estimated stock value: <strong id="previewValue">₦0.00</strong></div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="saveButton" type="submit">Save Product</button>
+          <button class="btn btn-secondary" id="cancelEdit" type="button" hidden>Cancel Edit</button>
+        </div>
+        <p class="hint" id="syncStatus" role="status" aria-live="polite" hidden></p>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>📦 Products in Store</h2>
+      <div class="field" style="margin-bottom:14px;max-width:420px">
+        <label for="searchProducts">Search products</label>
+        <input id="searchProducts" type="search" placeholder="">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Serial No.</th><th>Product</th><th>Category</th><th>Main quantity</th><th>Conversion levels</th><th>Total smallest units</th><th>Price / smallest unit</th><th>Stock Value</th><th>Actions</th></tr></thead>
+          <tbody id="productsBody"><tr><td colspan="9" class="empty">No products saved yet. Use “Add Product” above to start.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <a class="back" href="index.html">← Back to Home</a>
+  </main>
+
+  <footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {apiKey:"AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0",authDomain:"bnag-98914.firebaseapp.com",projectId:"bnag-98914",storageBucket:"bnag-98914.firebasestorage.app",messagingSenderId:"773444518955",appId:"1:773444518955:web:0445763c9b6be5457a166e"};
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const form = document.getElementById('productForm');
+    const byId = id => document.getElementById(id);
+    let products = [], editingId = null, levelCounter = 0;
+    const LOCAL_KEY = 'bna_store_inventory_v1';
+
+    let persistenceReady = false;
+    db.enablePersistence({synchronizeTabs:true}).then(() => {
+      persistenceReady = true;
+      byId('syncStatus').textContent = navigator.onLine
+        ? 'Offline storage is ready. Changes will sync to Firebase when online.'
+        : 'You are offline. Changes will be queued and synced when internet returns.';
+    }).catch(error => {
+      console.warn('Firestore persistence unavailable:', error);
+      byId('syncStatus').textContent = 'Offline cache is unavailable in this browser/session. Use HTTPS and a supported browser for offline support.';
+    });
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+    function money(v){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',minimumFractionDigits:2}).format(Number(v)||0)}
+    function escapeHtml(v){return String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function getLevels(){
+      return [...document.querySelectorAll('.sub-quantity-row')].map(row=>({
+        quantity:Math.max(0,Number(row.querySelector('[data-level-quantity]').value)||0),
+        unit:row.querySelector('[data-level-unit]').value.trim()||''
+      }));
+    }
+    function formValues(){
+      const enteredLevels=getLevels();
+      const first=enteredLevels[0]||{quantity:0,unit:''};
+      const conversions=enteredLevels.slice(1);
+      return {
+        name:byId('productName').value.trim(),
+        category:byId('category').value,
+        packUnit:first.unit,
+        packQuantity:first.quantity,
+        subQuantities:conversions,
+        // Compatibility fields for older sales pages.
+        muduPerPack:conversions.length?conversions[0].quantity:1,
+        unitsPerMudu:conversions.length>1?conversions.slice(1).reduce((n,l)=>n*l.quantity,1):1,
+        unitPrice:Math.max(0,Number(byId('unitPrice').value)||0)
+      };
+    }
+    function calculations(p){
+      const packs=Math.max(0,Number(p.packQuantity)||0);
+      const levels=Array.isArray(p.subQuantities)?p.subQuantities:[
+        {quantity:Math.max(0,Number(p.muduPerPack)||0),unit:'mudu'},
+        {quantity:Math.max(0,Number(p.unitsPerMudu)||0),unit:'unit'}
+      ];
+      const totalUnits=packs*levels.reduce((n,l)=>n*Math.max(0,Number(l.quantity)||0),1);
+      const soldUnits=Math.max(0,Number(p.soldUnits)||0);
+      const units=Math.max(0,totalUnits-soldUnits),unitPrice=Math.max(0,Number(p.unitPrice)||0);
+      return {packs,levels,totalUnits,soldUnits,units,unitPrice,stockValue:units*unitPrice,mainUnit:p.packUnit||'bag'};
+    }
+    function updatePreview(){
+      const v=formValues(), total=v.packQuantity*v.subQuantities.reduce((n,l)=>n*l.quantity,1);
+      const allLevels=getLevels();
+      const chain=allLevels.map((l,i)=>i===0?`${Number(l.quantity).toLocaleString()} ${l.unit||'unnamed'}`:`${Number(l.quantity).toLocaleString()} ${l.unit||'unnamed'} per ${allLevels[i-1]?.unit||'previous section'}`);
+      byId('previewUnits').textContent=total.toLocaleString();
+      byId('previewConversion').textContent=chain.join(' → ')||'Add a quantity section';
+      byId('previewValue').textContent=money(total*v.unitPrice);
+      byId('unitPriceLabel').textContent='Price (₦)';
+    }
+    function refreshLevelLabels(){
+      const rows=[...document.querySelectorAll('.sub-quantity-row')];
+      rows.forEach((row,index)=>{
+        const title=row.querySelector('[data-level-title]');
+        const label=row.querySelector('[data-level-quantity-label]');
+        const parent=index===0?'stock on hand':(rows[index-1].querySelector('[data-level-unit]').value.trim()||'previous section');
+        title.textContent=index===0?'Stock quantity':'Section '+(index+1);
+        label.textContent=index===0?'Quantity in stock':`Quantity per ${parent}`;
+      });
+    }
+    function addSubQuantity(quantity='',unit='',isFirst=false){
+      levelCounter++;
+      const row=document.createElement('div');
+      row.className='sub-quantity-row';
+      row.innerHTML=`<div class="field"><span class="level-number" data-level-title>Section ${levelCounter}</span><label>Section / subcategory name</label><input data-level-unit type="text" required maxlength="40" placeholder="" value="${escapeHtml(unit)}"></div>
+      <div class="field"><label data-level-quantity-label>Quantity</label><input data-level-quantity type="number" min="0.01" step="any" required placeholder="" value="${escapeHtml(quantity)}"></div>
+      <button class="btn btn-danger remove-level" type="button" aria-label="Remove section">Remove</button>`;
+      row.querySelectorAll('input').forEach(input=>input.addEventListener('input',()=>{refreshLevelLabels();updatePreview()}));
+      row.querySelector('.remove-level').addEventListener('click',()=>{
+        if(document.querySelectorAll('.sub-quantity-row').length<=1){alert('Keep at least one quantity section for the stock amount.');return}
+        row.remove();refreshLevelLabels();updatePreview();
+      });
+      byId('subQuantityRows').appendChild(row);refreshLevelLabels();updatePreview();
+    }
+    function renderProducts(){
+      const query=byId('searchProducts').value.trim().toLowerCase(),visible=products.filter(p=>String(p.name||'').toLowerCase().includes(query));
+      byId('productCount').textContent=products.length.toLocaleString();
+      byId('totalUnits').textContent=products.reduce((s,p)=>s+calculations(p).units,0).toLocaleString();
+      byId('totalValue').textContent=money(products.reduce((s,p)=>s+calculations(p).stockValue,0));
+      const body=byId('productsBody');
+      if(!visible.length){body.innerHTML=`<tr><td colspan="9" class="empty">${products.length?'No matching products found.':'No products saved yet. Use “Add Product” above to start.'}</td></tr>`;return}
+      body.innerHTML=visible.map(p=>{
+        const c=calculations(p),serial=products.findIndex(x=>x.id===p.id)+1;
+        const levels=c.levels.map(l=>`${Number(l.quantity).toLocaleString()} ${escapeHtml(l.unit||'unit')}`).join(' → ')||'—';
+        return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td><span class="category-tag">${escapeHtml(p.category||'Cereal')}</span></td><td>${c.packs.toLocaleString()} ${escapeHtml(c.mainUnit)}</td><td>${levels}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div></td></tr>`;
+      }).join('');
+      body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));
+      body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
+    }
+    function resetForm(){
+      form.reset();byId('subQuantityRows').innerHTML='';levelCounter=0;editingId=null;
+      byId('formTitle').textContent='➕ Add Product';byId('saveButton').textContent='Save Product';byId('cancelEdit').hidden=true;
+      addSubQuantity('','');
+      byId('productFormPanel').hidden=true;byId('showProductForm').hidden=false;updatePreview();
+    }
+    function editProduct(id){
+      const p=products.find(x=>x.id===id);if(!p)return;editingId=id;
+      byId('productName').value=p.name||'';byId('category').value=p.category||'Cereal';
+      byId('unitPrice').value=p.unitPrice??0;
+      byId('subQuantityRows').innerHTML='';levelCounter=0;
+      const conversions=Array.isArray(p.subQuantities)?p.subQuantities:[{quantity:p.muduPerPack??40,unit:'mudu'},{quantity:p.unitsPerMudu??16,unit:'unit'}];
+      addSubQuantity(p.packQuantity??1,p.packUnit||'bag');
+      conversions.forEach(l=>addSubQuantity(l.quantity,l.unit));
+      byId('formTitle').textContent='✏️ Edit Product';byId('saveButton').textContent='Update Product';byId('cancelEdit').hidden=false;
+      byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;
+      updatePreview();byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    async function deleteProduct(id){
+      const p=products.find(x=>x.id===id);if(!p||!confirm(`Delete “${p.name}” from the store records?`))return;
+      try{await db.collection('inventory').doc(String(id)).delete();if(editingId===id)resetForm();byId('syncStatus').textContent=navigator.onLine?'Delete saved; Firebase will sync it.':'Delete queued to sync when internet returns.'}
+      catch(e){console.error(e);alert('Could not delete product. Check Firebase configuration and Firestore rules.')}
+    }
+    byId('unitPrice').addEventListener('input',updatePreview);
+    byId('addSubQuantity').addEventListener('click',()=>addSubQuantity('',''));
+    byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
+    byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();const value=formValues();
+      if(!value.name||value.packQuantity<=0||!value.packUnit||getLevels().some(l=>l.quantity<=0||!l.unit)||value.unitPrice<0){alert('Please enter a product name, a name and quantity for every section, and a price of zero or more.');return}
+      byId('saveButton').disabled=true;
+      try{
+        if(editingId){const old=products.find(p=>p.id===editingId)||{};await db.collection('inventory').doc(String(editingId)).set({...old,...value,id:editingId,updatedAt:new Date().toISOString()},{merge:true})}
+        else{
+          const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2);
+          const product={...value,id,soldUnits:0,createdAt:new Date().toISOString()};
+          await db.collection('inventory').doc(id).set(product);
+          try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY,JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
+        }
+        resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved. Firebase will sync pending changes.':'Product saved and queued to sync when internet returns.';
+      }catch(e){console.error(e);alert('Product could not be saved. Open this page online once, and check Firestore rules and Firebase configuration.')}
+      finally{byId('saveButton').disabled=false}
+    });
+    db.collection('inventory').onSnapshot(snapshot=>{
+      products=snapshot.docs.map(d=>({...d.data(),id:d.id}));
+      try{localStorage.setItem(LOCAL_KEY,JSON.stringify(products))}catch(_){}
+      renderProducts();
+      byId('syncStatus').textContent=!navigator.onLine?'Offline: showing cached inventory. Pending writes sync when Firestore persistence is available.':'Connected to Firebase. Inventory changes sync across devices.';
+    },error=>{
+      console.error(error);try{const cached=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(cached))products=cached}catch(_){}
+      renderProducts();byId('syncStatus').textContent='Could not connect to Firebase. Showing saved local inventory if available.';
+    });
+    window.addEventListener('online',()=>{byId('syncStatus').textContent='Internet returned. Firebase will sync queued changes when available.'});
+    window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
+    addSubQuantity('','');updatePreview();
+  </script>
+</body>
+</html>
