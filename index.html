@@ -805,12 +805,39 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const now=new Date().toISOString();
       try{
         const batch=db.batch();
-        chosen.forEach(range=>{const posRecord={id:makeId(),type:'POS',rangeMin:Number(range.min),rangeMax:Number(range.max),charge:Number(range.charge),total:Number(range.charge),date:now,createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};batch.set(db.collection('posTransactions').doc(String(posRecord.id)),posRecord);});
+        // Save POS charges in the existing sales collection. The current Firestore
+        // rules commonly grant sales writes but may not include a separate
+        // posTransactions collection, which caused the permission-denied error.
+        chosen.forEach(range=>{
+          const id=makeId();
+          const charge=Number(range.charge)||0;
+          const posSale={
+            id,
+            type:'POS',
+            date:now,
+            total:charge,
+            items:[{
+              cartId:id,
+              productId:'POS',
+              name:'POS '+formatPosRange(range),
+              category:'POS',
+              section:'transaction',
+              conversionUnits:1,
+              quantity:1,
+              unitPrice:charge,
+              rangeMin:Number(range.min),
+              rangeMax:Number(range.max)
+            }],
+            createdBy:window.bnaAuthState.user.uid,
+            createdByEmail:window.bnaAuthState.user.email||''
+          };
+          batch.set(db.collection('sales').doc(String(id)),posSale);
+        });
         await batch.commit();
         const total=chosen.reduce((sum,range)=>sum+(Number(range.charge)||0),0);
         setNotice(chosen.length+' POS charge(s) recorded. Total charges: '+money(total)+'.','success');selectedPosRanges.clear();renderProductOptions();renderPosBill();renderAccount(activeAccountPeriod);await refreshAccountSales();
       }
-      catch(error){console.error('POS transaction save failed:',error);setNotice('POS transactions could not be saved to Firebase. Check Firestore rules.','error');}
+      catch(error){console.error('POS transaction save failed:',error);setNotice('POS transactions could not be saved ('+(error.code||'unknown error')+'). '+(error.message||'Check Firestore rules and sales write permissions.'),'error');}
       return;
     }
     if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) { setNotice('Please sign in with an authorized account first.', 'error'); return; }
