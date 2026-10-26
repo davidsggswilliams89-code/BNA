@@ -305,9 +305,35 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 }
 @media(min-width:651px){.cart-item{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1fr) auto minmax(110px,.8fr);column-gap:10px}}
 
+
+/* Firebase Authentication gate; existing business layout remains underneath. */
+#authGate{position:fixed;inset:0;z-index:99999;background:#f7f9fc;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}
+#authGate[hidden]{display:none!important}
+.auth-card{width:min(100%,430px);background:#fff;border:1px solid #e4e7ec;border-radius:20px;padding:24px;box-shadow:0 18px 55px #14285018}
+.auth-card h1{margin:0 0 8px;color:#064a99;font-size:1.5rem}.auth-card p{color:#667085;line-height:1.5}
+.auth-card label{display:block;font-weight:700;margin:14px 0 6px}.auth-card input{width:100%;min-height:46px;border:1px solid #cfd5df;border-radius:10px;padding:10px 12px;font:inherit}
+.auth-card button{width:100%;margin-top:14px;min-height:46px;border:0;border-radius:10px;background:#0759b8;color:#fff;font:inherit;font-weight:800}
+#authMessage{margin-top:12px;padding:10px;border-radius:9px;background:#eef4ff;color:#23456f;font-size:.9rem;overflow-wrap:anywhere}
+#authMessage.error{background:#fff0f0;color:#9b1c1c}
+#authBar{display:none;position:relative;z-index:6;padding:8px 12px;background:#fff;border-bottom:1px solid #e4e7ec;color:#344054;font-size:.85rem;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#authBar button{border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:7px 12px;font-weight:700;color:#344054}
+
 </style>
 </head>
 <body>
+<div id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+  <div class="auth-card">
+    <h1 id="authTitle">B-N-A Gusau Business</h1>
+    <form id="authForm">
+      <label for="authEmail">Email address</label><input id="authEmail" type="email" autocomplete="username" required>
+      <label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required>
+      <button id="authSubmit" type="submit">Sign in</button>
+    </form>
+    <div id="authMessage" role="status" aria-live="polite"></div>
+    <button id="authSignOut" type="button" hidden style="background:#eef2f7;color:#263449">Sign out</button>
+  </div>
+</div>
+<div id="authBar"><span id="authIdentity">Signed in</span><button id="signOutButton" type="button">Sign out</button></div>
 <header class="top-marquee" aria-label="Business name"><div class="marquee-track">B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business &nbsp; • &nbsp; B-N-A Gusau Business</div></header>
 <nav class="nav" aria-label="Main navigation"><div class="nav-inner">
 <a href="#homeView" data-view="homeView" aria-current="page">⌂ Home</a><a href="#accountView" data-view="accountView">👥 Accounts</a><a href="#storeView" data-view="storeView">🏪 Store</a><a href="add-transaction.html">Transaction</a>
@@ -434,6 +460,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 </dialog>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 (() => {
   'use strict';
@@ -442,7 +469,54 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const firebaseConfig = {apiKey:'AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0',authDomain:'bnag-98914.firebaseapp.com',projectId:'bnag-98914',storageBucket:'bnag-98914.firebasestorage.app',messagingSenderId:'773444518955',appId:'1:773444518955:web:0445763c9b6be5457a166e'};
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
+  const auth = firebase.auth();
   const $ = id => document.getElementById(id);
+  window.bnaAuthState = { user:null, role:null, ready:false };
+  const authGate = $('authGate'), authForm = $('authForm'), authMessage = $('authMessage');
+  function authStatus(message, isError=false){ authMessage.textContent=message; authMessage.classList.toggle('error',!!isError); }
+  function showSignedOut(message){
+    authGate.hidden=false; $('authBar').style.display='none'; $('authForm').hidden=false;
+    $('authSignOut').hidden=true; $('authSubmit').disabled=false;
+    if(message) authStatus(message,true);
+  }
+  authForm.addEventListener('submit', async event=>{
+    event.preventDefault(); $('authSubmit').disabled=true; authStatus('Signing in…');
+    try { await auth.signInWithEmailAndPassword($('authEmail').value.trim(),$('authPassword').value); }
+    catch(error){ console.error(error); authStatus(error.code==='auth/invalid-credential'?'Email or password is incorrect.':(error.message||'Sign-in failed.'),true); $('authSubmit').disabled=false; }
+  });
+  async function signOutBna(){ try { await auth.signOut(); } catch(error){ authStatus(error.message||'Could not sign out.',true); } }
+  $('signOutButton').addEventListener('click',signOutBna); $('authSignOut').addEventListener('click',signOutBna);
+  auth.onAuthStateChanged(async user=>{
+    window.bnaAuthState={user,role:null,ready:false};
+    if(!user){ showSignedOut('Sign in with your authorized business account.'); window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user:null,role:null}})); return; }
+    authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false; authStatus('Checking your account permissions…');
+    try {
+      const roleSnap=await db.collection('users').doc(user.uid).get();
+      const role=roleSnap.exists ? String(roleSnap.data().role||'').toLowerCase() : '';
+      if(!['admin','cashier'].includes(role)){
+        window.bnaAuthState={user,role:null,ready:false};
+        authStatus('Your account signed in, but it has no authorized role. Ask the administrator to create users/'+user.uid+' with role "admin" or "cashier".');
+        $('authForm').hidden=true; $('authSignOut').hidden=false; return;
+      }
+      window.bnaAuthState={user,role,ready:true};
+      authGate.hidden=true; $('authBar').style.display='flex';
+      $('authIdentity').textContent=(user.email||user.uid)+' · '+(role==='admin'?'Administrator':'Cashier');
+      const storeLink=document.querySelector('.nav-inner a[data-view="storeView"]');
+      if(storeLink) storeLink.style.display=role==='admin'?'flex':'none';
+      const storeView=$('storeView');
+      if(storeView && role!=='admin' && storeView.style.display==='block'){
+        storeView.style.display='none'; $('homeView').style.display='block';
+        document.querySelectorAll('.nav-inner a[data-view]').forEach(a=>a.removeAttribute('aria-current'));
+        const homeLink=document.querySelector('.nav-inner a[data-view="homeView"]'); if(homeLink) homeLink.setAttribute('aria-current','page');
+      }
+      window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user,role}}));
+      if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
+    } catch(error){
+      console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false};
+      authStatus('Could not verify your role from Firestore. Check the users document and Firestore rules. '+(error.code||''),true);
+      $('authForm').hidden=true; $('authSignOut').hidden=false;
+    }
+  });
   let products = [];
   let cart = [];
   let editingCartId = null;
@@ -486,6 +560,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     const el = $('notice'); el.className = 'status' + (type==='error'?' error':type==='success'?' success':''); el.textContent = message;
   }
   async function readProducts() {
+    if (!window.bnaAuthState || !window.bnaAuthState.ready) return;
     try {
       const snapshot = await db.collection('inventory').get();
       products = snapshot.docs.map(doc => ({...doc.data(), id:doc.id})).filter(p => p && p.id != null && typeof p.name === 'string');
@@ -652,6 +727,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   async function completeSale() {
+    if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) { setNotice('Please sign in with an authorized account first.', 'error'); return; }
     if (!cart.length) { setNotice('Add at least one product before completing a sale.', 'error'); return; }
     // Re-read the current store list so we do not rely on a stale page copy.
     let latest;
@@ -711,13 +787,14 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       row.append(left,right);root.appendChild(row);
     });
   }
+  window.bnaReloadProducts = readProducts;
   $('completeSale').addEventListener('click',completeSale);
   const yearElement = $('year');
   if (yearElement) yearElement.textContent = new Date().getFullYear();
   // A refresh lets the CRM pick up products added/edited in store.html.
   window.addEventListener('focus',readProducts);
   window.addEventListener('storage',event=>{if(event.key===STORAGE_KEY)readProducts();});
-  readProducts();renderHistory();
+  if (window.bnaAuthState && window.bnaAuthState.ready) readProducts();renderHistory();
 
 
   // Account view: period filters and totals.
@@ -748,6 +825,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     link.addEventListener('click', event => {
       event.preventDefault();
       const view = link.dataset.view;
+      if (view === 'storeView' && (!window.bnaAuthState || window.bnaAuthState.role !== 'admin')) { event.preventDefault(); return; }
       ['homeView','accountView','storeView'].forEach(viewId => {
         const section = $(viewId);
         if (section) section.style.display = viewId === view ? 'block' : 'none';
@@ -786,16 +864,16 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     let products = [], editingId = null, levelCounter = 0;
     const LOCAL_KEY = 'bna_store_inventory_v1';
 
-    let persistenceReady = false;
-    db.enablePersistence({synchronizeTabs:true}).then(() => {
-      persistenceReady = true;
-      byId('syncStatus').textContent = navigator.onLine
-        ? 'Offline storage is ready. Changes will sync to Firebase when online.'
-        : 'You are offline. Changes will be queued and synced when internet returns.';
-    }).catch(error => {
-      console.warn('Firestore persistence unavailable:', error);
-      byId('syncStatus').textContent = 'Offline cache is unavailable in this browser/session. Use HTTPS and a supported browser for offline support.';
-    });
+    // Persistence is intentionally not enabled here: the Home view may already have used Firestore.
+    function isAdmin(){return !!(window.bnaAuthState && window.bnaAuthState.ready && window.bnaAuthState.role==='admin')}
+    function updateStoreAccess(){
+      const allowed=isAdmin();
+      byId('showProductForm').hidden=!allowed;
+      document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{if(el.id!=='cancelEdit')el.disabled=!allowed});
+      if(!allowed){byId('productFormPanel').hidden=true;byId('syncStatus').textContent='Store management is restricted to administrators.';}
+      renderProducts();
+    }
+    window.addEventListener('bna-auth-ready',updateStoreAccess);
 
     document.getElementById('year').textContent = new Date().getFullYear();
     function money(v){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',minimumFractionDigits:2}).format(Number(v)||0)}
@@ -876,7 +954,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       body.innerHTML=visible.map(p=>{
         const c=calculations(p),serial=products.findIndex(x=>x.id===p.id)+1;
         const levels=c.levels.map(l=>`${Number(l.quantity).toLocaleString()} ${escapeHtml(l.unit||'unit')}`).join(' → ')||'—';
-        return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td><span class="category-tag">${escapeHtml(p.category||'Cereal')}</span></td><td>${c.packs.toLocaleString()} ${escapeHtml(c.mainUnit)}</td><td>${levels}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td><div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div></td></tr>`;
+        return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td><span class="category-tag">${escapeHtml(p.category||'Cereal')}</span></td><td>${c.packs.toLocaleString()} ${escapeHtml(c.mainUnit)}</td><td>${levels}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td>${isAdmin()?`<div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div>`:'—'}</td></tr>`;
       }).join('');
       body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));
       body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
@@ -900,16 +978,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       updatePreview();byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});
     }
     async function deleteProduct(id){
+      if(!isAdmin()){alert('Only an administrator can delete products.');return}
       const p=products.find(x=>x.id===id);if(!p||!confirm(`Delete “${p.name}” from the store records?`))return;
       try{await db.collection('inventory').doc(String(id)).delete();if(editingId===id)resetForm();byId('syncStatus').textContent=navigator.onLine?'Delete saved; Firebase will sync it.':'Delete queued to sync when internet returns.'}
       catch(e){console.error(e);alert('Could not delete product. Check Firebase configuration and Firestore rules.')}
     }
     byId('unitPrice').addEventListener('input',updatePreview);
     byId('addSubQuantity').addEventListener('click',()=>addSubQuantity('',''));
-    // Add Product click is attached by the independent fallback handler below.
+    byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
     form.addEventListener('submit',async event=>{
-      event.preventDefault();const value=formValues();
+      event.preventDefault();if(!isAdmin()){alert('Only an administrator can add or edit products.');return}const value=formValues();
       if(!value.name||value.packQuantity<=0||!value.packUnit||getLevels().some(l=>l.quantity<=0||!l.unit)||value.unitPrice<0){alert('Please enter a product name, a name and quantity for every section, and a price of zero or more.');return}
       byId('saveButton').disabled=true;
       try{
@@ -921,7 +1000,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY,JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
         resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved. Firebase will sync pending changes.':'Product saved and queued to sync when internet returns.';
-      }catch(e){console.error('Firebase product save failed:',e);const code=e&&e.code?('\nFirebase error: '+e.code):'';alert('Product could not be saved to Firebase.'+code+'\nCheck Firestore rules, internet connection, and Firebase project configuration.')}
+      }catch(e){console.error(e);alert('Product could not be saved. Open this page online once, and check Firestore rules and Firebase configuration.')}
       finally{byId('saveButton').disabled=false}
     });
     db.collection('inventory').onSnapshot(snapshot=>{
@@ -935,25 +1014,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     });
     window.addEventListener('online',()=>{byId('syncStatus').textContent='Internet returned. Firebase will sync queued changes when available.'});
     window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
-    addSubQuantity('','');updatePreview();
+    addSubQuantity('','');updatePreview();updateStoreAccess();
   
-})();
-</script>
-
-<script>
-// Independent mobile-safe handler: keeps Add Product usable even if another Firebase
-// initialization step fails before the Store script can attach its own listeners.
-(function(){
-  const button=document.getElementById('showProductForm');
-  const panel=document.getElementById('productFormPanel');
-  if(!button||!panel)return;
-  button.addEventListener('click',function(){
-    panel.hidden=false;
-    button.hidden=true;
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-    const name=document.getElementById('productName');
-    if(name)name.focus({preventScroll:true});
-  });
 })();
 </script>
 </body>
