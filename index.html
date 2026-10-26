@@ -268,35 +268,42 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
   
 
-/* Compact single-line product sale rows on mobile */
-@media (max-width:650px){
- .cart-item{grid-template-columns:minmax(0,1fr) auto auto;gap:5px;padding:7px 0;align-items:center}
- .product-info{grid-column:auto;min-width:0;display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
- .product-name{font-size:.78rem;line-height:1.1;flex:0 1 70px;min-width:0;overflow-wrap:anywhere}
- .sale-section-select{width:76px;min-width:0;max-width:76px;margin:0;padding:3px 14px 3px 4px;min-height:28px;font-size:.72rem;flex:0 0 76px}
- .unit-price{display:none}
- .edit-price{display:none!important}
- .quantity-area{grid-column:auto;grid-row:auto;min-width:0}
- .qty-label{display:none}
- .qty-control{gap:3px;justify-content:center}
- .qty-btn{width:25px;height:25px;flex:0 0 25px;border-radius:6px;font-size:.9rem;line-height:1;padding:0}
- .qty-value{width:25px!important;min-width:25px!important;max-width:25px;font-size:.82rem;min-height:25px!important;padding:1px!important;border-radius:4px!important}
- .item-total{grid-column:auto;grid-row:auto;align-self:center;display:flex;align-items:center;gap:2px;min-width:0;text-align:right}
- .item-total strong{font-size:.78rem;line-height:1.1;white-space:nowrap}
- .item-total small{display:none}
- .item-actions{margin:0;gap:1px;flex:0 0 auto}
- .icon-btn{font-size:.85rem;padding:2px;line-height:1.1}
+/* One-line sale rows: name, section, compact quantity controls and price stay together. */
+.cart-item{
+  display:grid;
+  grid-template-columns:minmax(70px,1.1fr) minmax(82px,1fr) auto minmax(82px,.9fr);
+  grid-template-rows:auto;
+  column-gap:6px;
+  row-gap:0;
+  align-items:center;
+  padding:7px 0;
 }
-@media(max-width:360px){
- .cart-item{grid-template-columns:minmax(0,1fr) auto auto;gap:3px;padding:6px 0}
- .product-info{gap:3px}
- .product-name{font-size:.72rem;flex-basis:58px}
- .sale-section-select{width:66px;max-width:66px;flex-basis:66px;font-size:.68rem;padding-right:12px}
- .qty-control{gap:2px}
- .qty-btn{width:22px;height:24px;flex-basis:22px}
- .qty-value{width:21px!important;min-width:21px!important;max-width:21px;font-size:.75rem}
- .item-total strong{font-size:.7rem}
+.product-info{display:contents}
+.product-name{grid-column:1;grid-row:1;font-size:.9rem;line-height:1.15;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sale-section-select{grid-column:2;grid-row:1;width:100%;max-width:none;min-width:0;min-height:27px;height:27px;margin:0;padding:2px 16px 2px 5px;font-size:.75rem;border-radius:6px}
+.unit-price{display:none}
+.edit-price{grid-column:1/-1;margin:5px 0 0}
+.quantity-area{grid-column:3;grid-row:1;min-width:0}
+.qty-label{display:none}
+.qty-control{gap:2px;flex-wrap:nowrap}
+.qty-btn{width:20px;height:22px;flex:0 0 20px;min-height:22px;padding:0;border-radius:5px;font-size:.8rem;line-height:1}
+.qty-value{width:20px!important;min-width:20px!important;min-height:22px!important;height:22px;padding:0!important;border-radius:4px;font-size:.78rem;font-weight:800;text-align:center}
+.item-total{grid-column:4;grid-row:1;text-align:right;align-self:center;min-width:0}
+.item-total strong{font-size:.82rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-total small{display:none}
+.item-actions{margin:1px 0 0;gap:3px;justify-content:flex-end}
+.icon-btn{padding:0 3px;font-size:.8rem;line-height:1.1;min-height:16px}
+@media(max-width:380px){
+  .cart-item{grid-template-columns:minmax(48px,.9fr) minmax(62px,1fr) auto minmax(68px,.9fr);column-gap:3px;padding:6px 0}
+  .product-name{font-size:.76rem}
+  .sale-section-select{font-size:.68rem;padding-left:3px;padding-right:12px}
+  .qty-btn{width:17px;height:20px;flex-basis:17px;min-height:20px;font-size:.72rem}
+  .qty-value{width:17px!important;min-width:17px!important;min-height:20px!important;height:20px;font-size:.72rem}
+  .item-total strong{font-size:.72rem}
+  .item-actions{gap:1px}
+  .icon-btn{padding:0 2px;font-size:.72rem}
 }
+@media(min-width:651px){.cart-item{grid-template-columns:minmax(120px,1.2fr) minmax(120px,1fr) auto minmax(110px,.8fr);column-gap:10px}}
 
 </style>
 </head>
@@ -325,7 +332,6 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 <section id="accountView" class="account-view" aria-label="Business account">
   <section class="account-title">
     <h1>Business Account</h1>
-    <p>Combined sales account for all four business containers.</p>
   </section>
   <div class="account-filters" aria-label="Sales period">
     <button class="active" type="button" data-account-period="today">Today</button>
@@ -433,6 +439,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   'use strict';
   const STORAGE_KEY = 'bna_store_inventory_v1';
   const SALES_KEY = 'bna_crm_sales_v1';
+  const firebaseConfig = {apiKey:'AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0',authDomain:'bnag-98914.firebaseapp.com',projectId:'bnag-98914',storageBucket:'bnag-98914.firebasestorage.app',messagingSenderId:'773444518955',appId:'1:773444518955:web:0445763c9b6be5457a166e'};
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
   const $ = id => document.getElementById(id);
   let products = [];
   let cart = [];
@@ -448,35 +457,22 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     return new Intl.NumberFormat('en-NG', {style:'currency',currency:'NGN',maximumFractionDigits:2}).format(Number(n) || 0);
   }
   function conversionLevels(p) {
-    // Prefer the saved conversion chain. Older product records may also carry
-    // the legacy mudu/piece fields, so use those if the saved chain has no
-    // meaningful conversion quantity.
-    const saved = Array.isArray(p.subQuantities)
-      ? p.subQuantities.filter(l => l && String(l.unit || '').trim())
-          .map(l => ({unit:String(l.unit).trim(), quantity:Math.max(1,Number(l.quantity)||1)}))
-      : [];
-    const legacy = [
+    const levels = Array.isArray(p.subQuantities) ? p.subQuantities.filter(l => l && l.unit) : [];
+    if (levels.length) return levels.map(l => ({unit:String(l.unit).trim(), quantity:Math.max(1,Number(l.quantity)||1)}));
+    return [
       {unit:'mudu', quantity:Math.max(1,Number(p.muduPerPack)||1)},
       {unit:'piece', quantity:Math.max(1,Number(p.unitsPerMudu)||1)}
     ];
-    const savedFactor = saved.reduce((n,l)=>n*l.quantity,1);
-    const legacyFactor = legacy.reduce((n,l)=>n*l.quantity,1);
-    if (saved.length && (savedFactor > 1 || legacyFactor <= 1)) return saved;
-    return legacy;
   }
   function productSections(p) {
     const levels = conversionLevels(p);
     const sections = [];
     const mainUnit = String(p.packUnit || 'carton').trim();
-    // The main pack price is the smallest-unit price multiplied by every
-    // configured conversion quantity (e.g. pieces per carton).
-    const mainFactor = levels.reduce((n,l)=>n*Math.max(1,Number(l.quantity)||1),1);
-    sections.push({unit:mainUnit, factor:Math.max(1,mainFactor)});
+    let factor = levels.reduce((n,l)=>n*l.quantity,1);
+    sections.push({unit:mainUnit, factor:Math.max(1,factor)});
     levels.forEach((level,i)=>{
-      const factor = levels.slice(i+1).reduce((n,l)=>n*Math.max(1,Number(l.quantity)||1),1);
-      if (!sections.some(s=>s.unit.toLowerCase()===level.unit.toLowerCase())) {
-        sections.push({unit:level.unit, factor:Math.max(1,factor)});
-      }
+      factor = levels.slice(i+1).reduce((n,l)=>n*l.quantity,1);
+      if (!sections.some(s=>s.unit.toLowerCase()===level.unit.toLowerCase())) sections.push({unit:level.unit, factor:Math.max(1,factor)});
     });
     return sections;
   }
@@ -489,17 +485,24 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function setNotice(message, type='info') {
     const el = $('notice'); el.className = 'status' + (type==='error'?' error':type==='success'?' success':''); el.textContent = message;
   }
-  function readProducts() {
-    products = loadJson(STORAGE_KEY, []);
-    if (!Array.isArray(products)) products = [];
-    products = products.filter(p => p && p.id != null && typeof p.name === 'string');
+  async function readProducts() {
+    try {
+      const snapshot = await db.collection('inventory').get();
+      products = snapshot.docs.map(doc => ({...doc.data(), id:doc.id})).filter(p => p && p.id != null && typeof p.name === 'string');
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(products)); } catch (_) {}
+    } catch (error) {
+      console.error('Firebase inventory read failed:', error);
+      products = loadJson(STORAGE_KEY, []);
+      if (!Array.isArray(products)) products = [];
+      products = products.filter(p => p && p.id != null && typeof p.name === 'string');
+    }
     renderCategoryButtons();
     renderProductOptions();
     renderCart();
     if (!products.length) {
-      setNotice('No products were found in store.html records on this browser. Open store.html, add and save products, then return here. Both pages must be hosted on the same website origin.', 'error');
+      setNotice('No products found in Firebase inventory. Check your internet connection and Firestore rules, or add products in Store.', 'error');
     } else {
-      setNotice('Choose Cereal or Drinks, then tick products to add them to the bill.', 'success');
+      setNotice('', 'success');
     }
   }
 
@@ -643,18 +646,23 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const totalCol=document.createElement('div');totalCol.className='item-total';
       const line=document.createElement('strong');line.textContent=money(item.quantity*item.unitPrice);
       const lineLabel=document.createElement('small');lineLabel.textContent='Line total';
-      const actions=document.createElement('div');actions.className='item-actions';
-      const edit=document.createElement('button');edit.className='icon-btn';edit.type='button';edit.textContent='✎';edit.title='Edit price';edit.setAttribute('aria-label','Edit price');edit.addEventListener('click',()=>{$('price-'+item.cartId).classList.toggle('show');});
-      const del=document.createElement('button');del.className='icon-btn delete';del.type='button';del.textContent='×';del.title='Remove product';del.setAttribute('aria-label','Remove product');del.addEventListener('click',()=>{cart=cart.filter(x=>x.cartId!==item.cartId);renderCart();});
-      actions.append(edit,del);totalCol.append(line,lineLabel,actions);row.append(infoCol,qtyCol,totalCol);root.appendChild(row);
+      totalCol.append(line,lineLabel);row.append(infoCol,qtyCol,totalCol);root.appendChild(row);
     });
     renderProductOptions();
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function completeSale() {
+  async function completeSale() {
     if (!cart.length) { setNotice('Add at least one product before completing a sale.', 'error'); return; }
     // Re-read the current store list so we do not rely on a stale page copy.
-    const latest = loadJson(STORAGE_KEY, []);
+    let latest;
+    try {
+      const snapshot = await db.collection('inventory').get();
+      latest = snapshot.docs.map(doc => ({...doc.data(), id:doc.id}));
+    } catch (error) {
+      console.error('Could not refresh Firebase inventory before sale:', error);
+      setNotice('Could not reach Firebase inventory. Sale was not completed; check internet and Firestore rules.', 'error');
+      return;
+    }
     if (!Array.isArray(latest)) { setNotice('Could not read the Store records. Sale was not completed.', 'error'); return; }
     for (const item of cart) {
       const p = latest.find(product => String(product.id) === String(item.productId));
@@ -670,13 +678,25 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       p.updatedAt=new Date().toISOString();
     });
     try {
+      const batch = db.batch();
+      cart.forEach(item => {
+        const product = latest.find(p => String(p.id) === String(item.productId));
+        const ref = db.collection('inventory').doc(String(product.id));
+        batch.set(ref, {soldUnits:Math.max(0,Number(product.soldUnits)||0), updatedAt:new Date().toISOString()}, {merge:true});
+      });
+      batch.set(db.collection('sales').doc(String(sale.id)), sale);
+      await batch.commit();
       localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));
       recentSales.unshift(sale); recentSales=recentSales.slice(0,20);
       localStorage.setItem(SALES_KEY,JSON.stringify(recentSales));
-    } catch (_) { setNotice('Browser storage could not be updated. Sale was not completed; check available storage.', 'error'); return; }
+    } catch (error) {
+      console.error('Firebase sale save failed:', error);
+      setNotice('Sale was not completed because Firebase could not save it. Check your connection and Firestore rules.', 'error');
+      return;
+    }
     const receipt = sale.items.map(x=>`${x.name} (${x.section||'piece'}) × ${x.quantity} — ${money(x.quantity*x.unitPrice)}`).join('\n');
     alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(sale.total));
-    cart=[];readProducts();renderHistory();setNotice('Sale completed. Store stock and recent sales were updated on this device.', 'success');
+    cart=[];await readProducts();renderHistory();setNotice('Sale completed. Stock and sale record saved to Firebase.', 'success');
   }
   function renderHistory() {
     const root=$('salesHistory');
