@@ -772,7 +772,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
     const receipt = sale.items.map(x=>`${x.name} (${x.section||'piece'}) × ${x.quantity} — ${money(x.quantity*x.unitPrice)}`).join('\n');
     alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(sale.total));
-    cart=[];await readProducts();renderHistory();setNotice('Sale completed. Stock and sale record saved to Firebase.', 'success');
+    cart=[];await readProducts();await refreshAccountSales();renderHistory();setNotice('Sale completed. Stock and sale record saved to Firebase.', 'success');
   }
   function renderHistory() {
     const root=$('salesHistory');
@@ -798,13 +798,11 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
 
   // Account view: period filters and totals.
-  const accountSales = {
-    today:{drinks:0,cereal:0,pos:0,wifi:0},
-    week:{drinks:0,cereal:0,pos:0,wifi:0},
-    month:{drinks:0,cereal:0,pos:0,wifi:0}
-  };
+  const accountSales = {today:{drinks:0,cereal:0,pos:0,wifi:0},week:{drinks:0,cereal:0,pos:0,wifi:0},month:{drinks:0,cereal:0,pos:0,wifi:0}};
   const accountLabels = {today:'Today',week:'This Week',month:'This Month'};
+  let activeAccountPeriod='today';
   function renderAccount(period) {
+    activeAccountPeriod=period;
     const x = accountSales[period] || accountSales.today;
     const total = (+x.drinks||0)+(+x.cereal||0)+(+x.pos||0)+(+x.wifi||0);
     $('accountPeriodLabel').textContent = accountLabels[period];
@@ -814,6 +812,33 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     $('accountPosBalance').textContent = money(x.pos);
     $('accountWifiBalance').textContent = money(x.wifi);
   }
+  async function refreshAccountSales(){
+    if(!window.bnaAuthState || !window.bnaAuthState.ready) return;
+    try{
+      const [salesSnap, inventorySnap]=await Promise.all([db.collection('sales').get(),db.collection('inventory').get()]);
+      const inventory=new Map(inventorySnap.docs.map(d=>[d.id,d.data()]));
+      const now=new Date(), dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      const weekStart=new Date(dayStart);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
+      const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+      const starts={today:dayStart,week:weekStart,month:monthStart};
+      Object.keys(accountSales).forEach(k=>accountSales[k]={drinks:0,cereal:0,pos:0,wifi:0});
+      salesSnap.docs.forEach(doc=>{
+        const sale=doc.data()||{};const date=new Date(sale.date||sale.createdAt||0);if(!Number.isFinite(date.getTime()))return;
+        const applicable=Object.keys(starts).filter(k=>date>=starts[k]);if(!applicable.length)return;
+        (Array.isArray(sale.items)?sale.items:[]).forEach(item=>{
+          const product=inventory.get(String(item.productId||item.id||''))||{};
+          const name=String(item.name||product.name||'').toLowerCase();
+          const category=String(item.category||product.category||'').toLowerCase();
+          const amount=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unitPrice)||0);
+          let key=/\b(pos|point of sale)\b/.test(category+' '+name)?'pos':(/\b(wi-?fi|hotspot|data)\b/.test(category+' '+name)?'wifi':(/\b(drink|beverage|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt)\b/.test(category+' '+name)?'drinks':'cereal'));
+          applicable.forEach(k=>accountSales[k][key]+=amount);
+        });
+      });
+      renderAccount(activeAccountPeriod);
+    }catch(error){console.error('Could not calculate account totals from Firebase sales:',error);$('accountPeriodLabel').textContent=accountLabels[activeAccountPeriod]+' · unable to load sales';}
+  }
+  window.addEventListener('bna-auth-ready',refreshAccountSales);
+  window.addEventListener('focus',refreshAccountSales);
   document.querySelectorAll('[data-account-period]').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('[data-account-period]').forEach(b => b.classList.remove('active'));
@@ -837,6 +862,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       });
       window.scrollTo({top:0,behavior:'auto'});
       if (view === 'homeView') readProducts();
+      if (view === 'accountView') refreshAccountSales();
       if (view === 'storeView') { window.dispatchEvent(new Event('store-view-shown')); }
     });
   });
@@ -866,11 +892,31 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
     // Persistence is intentionally not enabled here: the Home view may already have used Firestore.
     function isAdmin(){return !!(window.bnaAuthState && window.bnaAuthState.ready && window.bnaAuthState.role==='admin')}
+    let inventoryUnsubscribe = null;
+    function startInventoryListener(){
+      // Start the protected listener only after Firebase Auth and the user's role are ready.
+      // Starting it during page load can receive permission-denied before sign-in finishes.
+      if(!isAdmin() || inventoryUnsubscribe) return;
+      inventoryUnsubscribe = db.collection('inventory').onSnapshot(snapshot=>{
+        products=snapshot.docs.map(d=>({...d.data(),id:d.id}));
+        try{localStorage.setItem(LOCAL_KEY,JSON.stringify(products))}catch(_){}
+        renderProducts();
+        byId('syncStatus').textContent=!navigator.onLine?'Offline: showing cached inventory.':'Connected to Firebase. Inventory changes sync across devices.';
+        if(typeof window.bnaReloadProducts==='function') window.bnaReloadProducts();
+      },error=>{
+        console.error('Store inventory listener failed:',error);
+        try{const cached=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(cached))products=cached}catch(_){}
+        renderProducts();
+        byId('syncStatus').textContent='Could not load Store inventory from Firebase ('+(error.code||'error')+'). Check Firestore rules and your admin role.';
+        inventoryUnsubscribe=null;
+      });
+    }
     function updateStoreAccess(){
       const allowed=isAdmin();
       byId('showProductForm').hidden=!allowed;
       document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{if(el.id!=='cancelEdit')el.disabled=!allowed});
       if(!allowed){byId('productFormPanel').hidden=true;byId('syncStatus').textContent='Store management is restricted to administrators.';}
+      else startInventoryListener();
       renderProducts();
     }
     window.addEventListener('bna-auth-ready',updateStoreAccess);
@@ -980,7 +1026,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     async function deleteProduct(id){
       if(!isAdmin()){alert('Only an administrator can delete products.');return}
       const p=products.find(x=>x.id===id);if(!p||!confirm(`Delete “${p.name}” from the store records?`))return;
-      try{await db.collection('inventory').doc(String(id)).delete();if(editingId===id)resetForm();byId('syncStatus').textContent=navigator.onLine?'Delete saved; Firebase will sync it.':'Delete queued to sync when internet returns.'}
+      try{await db.collection('inventory').doc(String(id)).delete();if(editingId===id)resetForm();byId('syncStatus').textContent='Product deleted from Firebase.';if(typeof window.bnaReloadProducts==='function')await window.bnaReloadProducts()}
       catch(e){console.error(e);alert('Could not delete product. Check Firebase configuration and Firestore rules.')}
     }
     byId('unitPrice').addEventListener('input',updatePreview);
@@ -999,19 +1045,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           await db.collection('inventory').doc(id).set(product);
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY,JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
-        resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved. Firebase will sync pending changes.':'Product saved and queued to sync when internet returns.';
+        resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved to Firebase.':'Product saved locally; check your connection.';
+        if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
       }catch(e){console.error(e);alert('Product could not be saved. Open this page online once, and check Firestore rules and Firebase configuration.')}
       finally{byId('saveButton').disabled=false}
     });
-    db.collection('inventory').onSnapshot(snapshot=>{
-      products=snapshot.docs.map(d=>({...d.data(),id:d.id}));
-      try{localStorage.setItem(LOCAL_KEY,JSON.stringify(products))}catch(_){}
-      renderProducts();
-      byId('syncStatus').textContent=!navigator.onLine?'Offline: showing cached inventory. Pending writes sync when Firestore persistence is available.':'Connected to Firebase. Inventory changes sync across devices.';
-    },error=>{
-      console.error(error);try{const cached=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(cached))products=cached}catch(_){}
-      renderProducts();byId('syncStatus').textContent='Could not connect to Firebase. Showing saved local inventory if available.';
-    });
+    // Inventory listener is started by updateStoreAccess after admin authorization.
     window.addEventListener('online',()=>{byId('syncStatus').textContent='Internet returned. Firebase will sync queued changes when available.'});
     window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
     addSubQuantity('','');updatePreview();updateStoreAccess();
