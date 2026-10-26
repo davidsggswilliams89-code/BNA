@@ -13,8 +13,8 @@ body{margin:0;background:var(--cream);color:var(--text);font-family:Arial,Helvet
 .marquee-track{padding-left:100%;animation:marquee 14s linear infinite}
 @keyframes marquee{to{transform:translateX(-100%)}}
 .nav{position:sticky;top:0;z-index:5;padding:5px 7px;background:linear-gradient(135deg,var(--blue-dark),#1877d5);box-shadow:0 3px 12px #00000018}
-.nav-inner{max-width:1050px;margin:auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;align-items:stretch}
-.nav a,.nav-inner button{display:flex;align-items:center;justify-content:center;min-width:0;width:100%;min-height:34px;padding:6px 5px;border:1px solid #ffffff45;border-radius:8px;background:#ffffff17;color:#fff;text-decoration:none;font-weight:700;font-size:.82rem;white-space:nowrap;text-align:center;font-family:inherit;cursor:pointer}
+.nav-inner{max-width:1050px;margin:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;justify-content:center}
+.nav a,.nav-inner button{display:flex;align-items:center;justify-content:center;flex:1 0 auto;min-width:max-content;min-height:38px;padding:7px 14px;border:1px solid #ffffff45;border-radius:8px;background:#ffffff17;color:#fff;text-decoration:none;font-weight:700;font-size:.84rem;white-space:nowrap;text-align:center;font-family:inherit;cursor:pointer}
 main{width:min(100% - 28px,950px);margin:24px auto 40px}
 .page-head{text-align:center;margin-bottom:20px}
 .page-head h1{font-size:clamp(1.55rem,4vw,2.2rem);margin:0 0 8px;color:var(--blue-dark)}
@@ -32,7 +32,7 @@ select:focus,input:focus{outline:2px solid #b7d2ff;border-color:var(--blue)}
 .primary{background:#171717;color:#fff}.blue{background:var(--blue);color:#fff}.light{background:#eef2f7;color:#263449}.danger{background:#fff0f0;color:var(--danger)}.outline{border:1px solid #d0d5dd;background:#fff;color:#344054}
 .category-buttons{display:flex;flex-wrap:nowrap;gap:5px;overflow:hidden;padding:1px 0 7px;margin-bottom:5px;width:100%;align-items:stretch}
 .category-button{flex:0 0 auto;border:1px solid #d0d5dd;background:#fff;color:#344054;border-radius:999px;padding:10px 15px;min-height:42px;font:inherit;font-size:.9rem;font-weight:800;white-space:nowrap;cursor:pointer}
-.category-button.active{background:var(--blue);border-color:var(--blue);color:#fff}\n.category-button{flex:1 1 25%;min-width:0;text-align:center;padding:8px 6px;min-height:36px;font-size:.82rem;line-height:1.1}\n.extra-nav-button{background:#fff;border-color:#b7c9e2;color:var(--blue-dark)}\n@media(max-width:480px){main{width:calc(100% - 12px);margin-top:10px}.top-marquee{height:26px;font-size:.74rem}.nav{padding:4px}.nav-inner{gap:4px}.nav a,.nav-inner button{min-height:34px;padding:5px 2px;font-size:.68rem}.category-buttons{gap:4px}.category-button{flex:1 1 25%;padding:7px 3px;font-size:.72rem;min-height:32px;border-radius:8px}.extra-nav-button{padding-left:3px;padding-right:3px}.bill{padding:10px;border-radius:12px}}
+.category-button.active{background:var(--blue);border-color:var(--blue);color:#fff}\n.category-button{flex:1 1 25%;min-width:0;text-align:center;padding:8px 6px;min-height:36px;font-size:.82rem;line-height:1.1}\n.extra-nav-button{background:#fff;border-color:#b7c9e2;color:var(--blue-dark)}\n@media(max-width:480px){main{width:calc(100% - 12px);margin-top:10px}.top-marquee{height:26px;font-size:.74rem}.nav{padding:4px}.nav-inner{gap:4px}.nav a,.nav-inner button{min-height:36px;padding:6px 10px;font-size:.76rem}.category-buttons{gap:4px}.category-button{flex:1 1 25%;padding:7px 3px;font-size:.72rem;min-height:32px;border-radius:8px}.extra-nav-button{padding-left:3px;padding-right:3px}.bill{padding:10px;border-radius:12px}}
 .extra-category-buttons{padding-top:0;margin-top:-4px}
 .extra-category-buttons .category-button{flex:1 1 0;min-width:max-content;text-align:center}
 @media(min-width:651px){.category-buttons{flex-wrap:nowrap}.category-button{flex:1 1 0;text-align:center}}
@@ -335,7 +335,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 </div>
 <div id="authBar" aria-hidden="true"><span id="authIdentity">Signed in</span></div>
 <nav class="nav" aria-label="Main navigation"><div class="nav-inner">
-<a href="#homeView" data-view="homeView" aria-current="page">⌂ Home</a><a href="#accountView" data-view="accountView">👥 Accounts</a><a href="#storeView" data-view="storeView">🏪 Store</a><a href="add-transaction.html">Transaction</a><button id="signOutButton" type="button">Logout</button>
+<a href="#homeView" data-view="homeView" aria-current="page">⌂ Home</a><a href="#accountView" data-view="accountView">👥 Accounts</a><a href="#storeView" data-view="storeView">🏪 Store</a><a href="add-transaction.html">Record</a><button id="signOutButton" type="button">Logout</button>
 </div></nav>
 <main id="homeView">
   
