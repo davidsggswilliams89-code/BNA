@@ -318,6 +318,19 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 #authBar{display:none!important}
 #authBar button{display:none!important}
 
+
+/* POS section displayed inside the same Home bill card */
+.pos-panel{display:none;margin:4px 0 18px;padding:4px 0}
+.pos-panel.active{display:block}
+.pos-range-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pos-range{display:flex;align-items:center;gap:9px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;min-width:0}
+.pos-range label{display:flex;align-items:center;gap:9px;flex:1;min-width:0;font-weight:700;cursor:pointer}
+.pos-range input{width:20px;min-width:20px;height:20px;min-height:20px;padding:0;accent-color:var(--green)}
+.pos-charge{font-weight:800;color:var(--green);white-space:nowrap}
+.pos-config-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0;padding:10px;border:1px solid #e4eaf3;border-radius:10px}
+.pos-config-row label{font-size:.8rem;font-weight:700;display:block;margin-bottom:4px}
+.pos-config-row input{min-height:36px;padding:6px}
+@media(max-width:480px){.pos-range-list{grid-template-columns:1fr}.pos-config-row{grid-template-columns:1fr 1fr}.pos-config-row button{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -345,6 +358,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     
     <div id="categoryButtons" class="category-buttons" aria-label="Product categories"></div>
     <div id="productOptions" class="product-options" aria-label="Products in selected category"></div>
+    <section id="posPanel" class="pos-panel" aria-label="POS charges">
+      <h2>POS Charges</h2>
+      <p class="subtext">Select the transaction amount range. The configured charge will be added to the bill.</p>
+      <div id="posRangeList" class="pos-range-list"></div>
+      <div class="total-row" style="margin-top:12px"><strong>POS CHARGE</strong><div class="total-amount" id="posChargeTotal">₦0.00</div></div>
+      <button class="btn primary complete" id="completePos" type="button">Complete POS Transaction</button>
+    </section>
     <div id="cartList" class="cart-list"><div class="empty">Your bill is empty. Choose a product above to begin.</div></div>
     <div class="total-row"><strong>TOTAL TO PAY</strong><div class="total-amount" id="grandTotal">₦0.00</div></div>
     <button class="btn primary complete" id="completeSale" type="button">Complete Sale</button>
@@ -429,6 +449,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       </form>
     </section>
 
+    <section class="panel" id="posSettingsPanel">
+      <h2>💳 POS Charge Settings</h2>
+      <p class="hint">Set each transaction range and its charge. These settings are saved in Firebase.</p>
+      <div id="posConfigRows"></div>
+      <div class="actions"><button class="btn btn-secondary" id="addPosRange" type="button">＋ Add range</button><button class="btn btn-primary" id="savePosSettings" type="button">Save POS charges</button></div>
+      <p class="hint" id="posSettingsStatus" role="status"></p>
+    </section>
     <section class="panel">
       <h2>📦 Products in Store</h2>
       <div class="field" style="margin-bottom:14px;max-width:420px">
@@ -593,7 +620,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function renderCategoryButtons() {
     const root = $('categoryButtons');
     const categories = ['Cereal', 'Drinks'];
-    if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
+    if (!['Cereal','Drinks','POS'].includes(selectedCategory)) selectedCategory = 'Cereal';
     root.innerHTML = '';
     categories.forEach(category => {
       const button = document.createElement('button');
@@ -609,22 +636,28 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       root.appendChild(button);
     });
 
-    // Keep all four navigation/category buttons together in one aligned horizontal row.
-    [
-      { label: 'POS', href: 'POS.html' },
-      { label: 'Wi-Fi', href: 'wifi-hotspot.html' }
-    ].forEach(item => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'category-button extra-nav-button';
-      button.textContent = item.label;
-      button.addEventListener('click', () => { window.location.href = item.href; });
-      root.appendChild(button);
+    // POS opens in this same Home view; Wi-Fi retains its existing page link.
+    [{label:'POS',action:'pos'},{label:'Wi-Fi',action:'wifi'}].forEach(item=>{
+      const button=document.createElement('button');button.type='button';
+      button.className='category-button extra-nav-button'+(item.action==='pos'&&selectedCategory==='POS'?' active':'');
+      button.textContent=item.label;
+      button.addEventListener('click',()=>{
+        if(item.action==='pos'){selectedCategory='POS';renderCategoryButtons();renderProductOptions();renderPosRanges();}
+        else window.location.href='wifi-hotspot.html';
+      });root.appendChild(button);
     });
   }
 
   function renderProductOptions() {
     const root = $('productOptions');
+    const posPanel=$('posPanel');
+    const isPos=selectedCategory==='POS';
+    if(posPanel) posPanel.classList.toggle('active',isPos);
+    root.style.display=isPos?'none':'grid';
+    $('cartList').style.display=isPos?'none':'flex';
+    document.querySelector('.total-row').style.display=isPos?'none':'flex';
+    $('completeSale').style.display=isPos?'none':'block';
+    if(isPos){root.innerHTML='';return;}
     const matches = products.filter(p => productCategory(p) === selectedCategory);
     root.innerHTML = '';
     if (!matches.length) {
@@ -786,6 +819,24 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       row.append(left,right);root.appendChild(row);
     });
   }
+  // POS charge bands are editable by administrators in Store and persisted in Firestore.
+  const POS_SETTINGS_DOC='settings/posCharges';
+  const POS_DEFAULTS=[{min:1,max:1000,charge:15},{min:1000.01,max:5000,charge:100},{min:5000.01,max:10000,charge:100},{min:10000.01,max:15000,charge:200},{min:15000.01,max:20000,charge:200},{min:20000.01,max:25000,charge:300}];
+  let posRanges=POS_DEFAULTS.map(x=>({...x})),selectedPosRange=-1;
+  const posMoney=n=>money(n);
+  function renderPosRanges(){
+    const root=$('posRangeList');if(!root)return;root.innerHTML='';
+    posRanges.forEach((r,i)=>{const row=document.createElement('div');row.className='pos-range';const label=document.createElement('label');const check=document.createElement('input');check.type='checkbox';check.checked=selectedPosRange===i;check.setAttribute('aria-label','Select POS range '+r.min+' to '+r.max);check.addEventListener('change',()=>{selectedPosRange=check.checked?i:-1;renderPosRanges();$('posChargeTotal').textContent=posMoney(selectedPosRange>=0?Number(posRanges[selectedPosRange].charge)||0:0);});const title=document.createElement('span');title.textContent=posMoney(r.min)+' – '+posMoney(r.max);label.append(check,title);const charge=document.createElement('span');charge.className='pos-charge';charge.textContent=posMoney(r.charge);row.append(label,charge);root.append(row);});
+    $('posChargeTotal').textContent=posMoney(selectedPosRange>=0?Number(posRanges[selectedPosRange]?.charge)||0:0);
+  }
+  function renderPosConfig(){const root=$('posConfigRows');if(!root)return;root.innerHTML='';posRanges.forEach((r,i)=>{const row=document.createElement('div');row.className='pos-config-row';row.innerHTML=`<div><label>Minimum (₦)</label><input type="number" min="0" step="0.01" data-pos-min="${i}" value="${Number(r.min)||0}"></div><div><label>Maximum (₦)</label><input type="number" min="0" step="0.01" data-pos-max="${i}" value="${Number(r.max)||0}"></div><div><label>Charge (₦)</label><input type="number" min="0" step="0.01" data-pos-charge="${i}" value="${Number(r.charge)||0}"></div><button type="button" class="btn btn-danger" data-pos-remove="${i}">Remove</button>`;root.append(row);});root.querySelectorAll('[data-pos-remove]').forEach(b=>b.onclick=()=>{posRanges.splice(Number(b.dataset.posRemove),1);selectedPosRange=-1;renderPosConfig();renderPosRanges();});}
+  async function loadPosSettings(){try{const snap=await db.doc(POS_SETTINGS_DOC).get();if(snap.exists&&Array.isArray(snap.data().ranges)&&snap.data().ranges.length)posRanges=snap.data().ranges.map(r=>({min:Number(r.min)||0,max:Number(r.max)||0,charge:Number(r.charge)||0}));}catch(e){console.warn('Could not load POS settings; using default ranges.',e);}renderPosConfig();renderPosRanges();}
+  $('addPosRange').addEventListener('click',()=>{const last=posRanges[posRanges.length-1]||{max:0};posRanges.push({min:Number(last.max)+0.01,max:Number(last.max)+1000,charge:0});renderPosConfig();renderPosRanges();});
+  $('savePosSettings').addEventListener('click',async()=>{if(!window.bnaAuthState?.ready||window.bnaAuthState.role!=='admin'){ $('posSettingsStatus').textContent='Only administrators can save POS charges.';return;}const ranges=[...document.querySelectorAll('[data-pos-min]')].map((el,i)=>({min:Number(el.value),max:Number(document.querySelector(`[data-pos-max="${i}"]`).value),charge:Number(document.querySelector(`[data-pos-charge="${i}"]`).value)}));if(ranges.some(r=>r.min<0||r.max<r.min||r.charge<0)){ $('posSettingsStatus').textContent='Check the ranges and charges; values must be valid and non-negative.';return;}try{await db.doc(POS_SETTINGS_DOC).set({ranges,updatedAt:new Date().toISOString(),updatedBy:window.bnaAuthState.user.uid});posRanges=ranges;selectedPosRange=-1;renderPosRanges();$('posSettingsStatus').textContent='POS charge settings saved to Firebase.';}catch(e){console.error(e);$('posSettingsStatus').textContent='Could not save. Check Firestore rules for settings/posCharges.';}});
+  $('completePos').addEventListener('click',async()=>{if(!window.bnaAuthState?.ready||!['admin','cashier'].includes(window.bnaAuthState.role)){setNotice('Sign in with an authorized account first.','error');return;}if(selectedPosRange<0){setNotice('Select a POS amount range first.','error');return;}const r=posRanges[selectedPosRange];const amount=Number(prompt('Enter the actual POS transaction amount (₦) within '+posMoney(r.min)+' – '+posMoney(r.max)+':',''));if(!Number.isFinite(amount)||amount<r.min||amount>r.max){setNotice('Enter a valid transaction amount within the selected range.','error');return;}const charge=Number(r.charge)||0;const sale={id:makeId(),date:new Date().toISOString(),type:'POS',category:'POS',amount,charge,total:charge,items:[{productId:'POS',name:'POS charge ('+posMoney(r.min)+' – '+posMoney(r.max)+')',category:'POS',quantity:1,unitPrice:charge,amount:charge}],total:charge,createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};try{await db.collection('sales').doc(String(sale.id)).set(sale);recentSales.unshift(sale);recentSales=recentSales.slice(0,20);setNotice('POS transaction saved. Charge: '+posMoney(charge)+'.','success');selectedPosRange=-1;renderPosRanges();await refreshAccountSales();}catch(e){console.error(e);setNotice('Could not save POS transaction. Check Firestore rules for sales.','error');}});
+  window.addEventListener('bna-auth-ready',loadPosSettings);
+  loadPosSettings();
+
   window.bnaReloadProducts = readProducts;
   $('completeSale').addEventListener('click',completeSale);
   const yearElement = $('year');
