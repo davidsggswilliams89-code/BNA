@@ -324,12 +324,14 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 .pos-settings h2{margin:0 0 12px;color:#084298;font-size:1rem}
 .pos-range-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .pos-range-form input{min-width:0;width:100%;padding:8px;border:1px solid #cfd8e6;border-radius:7px}
-.pos-range-card{display:flex;align-items:center;gap:10px;border:1px solid #e4e7ec;border-radius:10px;padding:12px;margin:8px 0;background:#fff}
-.pos-range-card input{width:20px;min-width:20px;height:20px;min-height:20px;accent-color:#087f45}
-.pos-range-card .pos-range-label{font-weight:800;flex:1}
-.pos-range-card .pos-range-charge{font-weight:900;color:#087f45;white-space:nowrap}
+#productOptions.pos-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:none;overflow:visible;margin-bottom:18px}
+.pos-range-card{display:flex;align-items:center;gap:8px;min-height:38px;padding:6px 8px;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:0;cursor:pointer}
+.pos-range-card input{width:18px;min-width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--green);flex-shrink:0}
+.pos-range-card .pos-range-label{font-weight:700;font-size:.82rem;line-height:1.2;flex:1;min-width:0;white-space:nowrap}
+.pos-range-card .pos-range-charge{display:none}
+.pos-range-card:has(input:checked){background:#effaf3}
 .pos-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-@media(max-width:480px){.pos-range-form{grid-template-columns:1fr 1fr}.pos-range-card{padding:10px}.pos-range-card .pos-range-label{font-size:.9rem}}
+@media(max-width:480px){.pos-range-form{grid-template-columns:1fr 1fr}#productOptions.pos-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.pos-range-card{padding:6px 7px;gap:6px}.pos-range-card .pos-range-label{font-size:.78rem}}
 </style>
 </head>
 <body>
@@ -611,7 +613,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
   function renderCategoryButtons() {
     const root = $('categoryButtons');
-    const categories = ['Cereal', 'Drinks', 'POS', 'Wi-Fi'];
+    const categories = ['Cereal', 'Drinks'];
     if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
     root.innerHTML = '';
     categories.forEach(category => {
@@ -660,9 +662,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   let selectedPosRanges = new Set();
   function formatPosRange(range){
     const amount=n=>Number(n).toLocaleString('en-NG',{maximumFractionDigits:2});
-    return '₦'+amount(range.min)+' – ₦'+amount(range.max);
+    return amount(range.min)+' to '+amount(range.max);
   }
   function renderPosOptions(root){
+    root.classList.add('pos-options');
     root.innerHTML='';
     const ranges=getPosRanges();
     ranges.forEach((range,index)=>{
@@ -703,6 +706,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       root.innerHTML='<div class="no-products">Wi-Fi hotspot sales are managed in the Wi-Fi section.</div>';
       $('cartList').innerHTML='<div class="empty">Select Wi-Fi to manage hotspot sales.</div>';$('grandTotal').textContent=money(0);$('completeSale').textContent='Complete Sale';return;
     }
+    root.classList.remove('pos-options');
     $('completeSale').textContent='Complete Sale';
     const matches = products.filter(p => productCategory(p) === selectedCategory);
     root.innerHTML = '';
