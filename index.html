@@ -325,13 +325,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 .pos-range-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .pos-range-form input{min-width:0;width:100%;padding:8px;border:1px solid #cfd8e6;border-radius:7px}
 #productOptions.pos-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:none;overflow:visible;margin-bottom:18px}
-.pos-range-card{display:flex;align-items:center;gap:8px;min-height:38px;padding:6px 8px;margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:0;cursor:pointer}
+.pos-range-card{display:flex;align-items:center;gap:7px;min-height:36px;padding:6px 8px;margin:0;border:1px solid var(--line);border-radius:9px;background:#fff;min-width:0;cursor:pointer;overflow:hidden}
 .pos-range-card input{width:18px;min-width:18px;height:18px;min-height:18px;margin:0;accent-color:var(--green);flex-shrink:0}
-.pos-range-card .pos-range-label{font-weight:700;font-size:.82rem;line-height:1.2;flex:1;min-width:0;white-space:nowrap}
+.pos-range-card .pos-range-label{font-weight:700;font-size:.82rem;line-height:1.15;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:clip}
 .pos-range-card .pos-range-charge{display:none}
 .pos-range-card:has(input:checked){background:#effaf3}
 .pos-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-@media(max-width:480px){.pos-range-form{grid-template-columns:1fr 1fr}#productOptions.pos-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.pos-range-card{padding:6px 7px;gap:6px}.pos-range-card .pos-range-label{font-size:.78rem}}
+@media(max-width:480px){.pos-range-form{grid-template-columns:1fr 1fr}#productOptions.pos-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.pos-range-card{padding:6px 5px;gap:5px}.pos-range-card .pos-range-label{font-size:.76rem}.category-buttons{overflow-x:auto;scrollbar-width:none}.category-buttons::-webkit-scrollbar{display:none}}
 </style>
 </head>
 <body>
@@ -613,7 +613,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
   function renderCategoryButtons() {
     const root = $('categoryButtons');
-    const categories = ['Cereal', 'Drinks'];
+    const categories = ['Cereal', 'Drinks', 'POS', 'Wi-Fi'];
     if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
     root.innerHTML = '';
     categories.forEach(category => {
@@ -626,21 +626,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         selectedCategory = category;
         renderCategoryButtons();
         renderProductOptions();
-      });
-      root.appendChild(button);
-    });
-
-    // All four categories are real in-page tabs, matching Cereal and Drinks.
-    ['POS','Wi-Fi'].forEach(category => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'category-button extra-nav-button' + (category === selectedCategory ? ' active' : '');
-      button.textContent = category;
-      button.setAttribute('aria-pressed', String(category === selectedCategory));
-      button.addEventListener('click', () => {
-        selectedCategory = category;
-        renderCategoryButtons();
-        renderProductOptions();
+        if (category === 'POS') renderPosBill();
+        else if (category === 'Cereal' || category === 'Drinks') renderCart();
       });
       root.appendChild(button);
     });
@@ -701,7 +688,11 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   function renderProductOptions() {
     const root = $('productOptions');
-    if(selectedCategory==='POS'){renderPosOptions(root);return;}
+    if(selectedCategory==='POS'){
+      renderPosOptions(root);
+      renderPosBill();
+      return;
+    }
     if(selectedCategory==='Wi-Fi'){
       root.innerHTML='<div class="no-products">Wi-Fi hotspot sales are managed in the Wi-Fi section.</div>';
       $('cartList').innerHTML='<div class="empty">Select Wi-Fi to manage hotspot sales.</div>';$('grandTotal').textContent=money(0);$('completeSale').textContent='Complete Sale';return;
@@ -764,6 +755,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function makeId() { return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
   function cartTotal() { return cart.reduce((sum,item)=>sum + item.quantity * item.unitPrice,0); }
   function renderCart() {
+    if (selectedCategory === 'POS') { renderPosBill(); return; }
     const root = $('cartList');
     $('grandTotal').textContent = money(cartTotal());
     if (!cart.length) {
