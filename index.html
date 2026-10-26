@@ -906,7 +906,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
     byId('unitPrice').addEventListener('input',updatePreview);
     byId('addSubQuantity').addEventListener('click',()=>addSubQuantity('',''));
-    byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
+    // Add Product click is attached by the independent fallback handler below.
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
     form.addEventListener('submit',async event=>{
       event.preventDefault();const value=formValues();
@@ -921,7 +921,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY)||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY,JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
         resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved. Firebase will sync pending changes.':'Product saved and queued to sync when internet returns.';
-      }catch(e){console.error(e);alert('Product could not be saved. Open this page online once, and check Firestore rules and Firebase configuration.')}
+      }catch(e){console.error('Firebase product save failed:',e);const code=e&&e.code?('\nFirebase error: '+e.code):'';alert('Product could not be saved to Firebase.'+code+'\nCheck Firestore rules, internet connection, and Firebase project configuration.')}
       finally{byId('saveButton').disabled=false}
     });
     db.collection('inventory').onSnapshot(snapshot=>{
@@ -937,6 +937,23 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
     addSubQuantity('','');updatePreview();
   
+})();
+</script>
+
+<script>
+// Independent mobile-safe handler: keeps Add Product usable even if another Firebase
+// initialization step fails before the Store script can attach its own listeners.
+(function(){
+  const button=document.getElementById('showProductForm');
+  const panel=document.getElementById('productFormPanel');
+  if(!button||!panel)return;
+  button.addEventListener('click',function(){
+    panel.hidden=false;
+    button.hidden=true;
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+    const name=document.getElementById('productName');
+    if(name)name.focus({preventScroll:true});
+  });
 })();
 </script>
 </body>
