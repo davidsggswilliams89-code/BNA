@@ -626,8 +626,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         selectedCategory = category;
         renderCategoryButtons();
         renderProductOptions();
-        if (category === 'POS') renderPosBill();
-        else if (category === 'Cereal' || category === 'Drinks') renderCart();
+        renderCart();
       });
       root.appendChild(button);
     });
@@ -670,27 +669,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     if(!ranges.length)root.innerHTML='<div class="no-products">No POS ranges configured. Ask an administrator to configure POS charges in Store.</div>';
   }
   function renderPosBill(){
-    const ranges=getPosRanges();
-    const selected=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>({index:i,...ranges[i]}));
-    const root=$('cartList');root.innerHTML='';
-    if(!selected.length){root.innerHTML='<div class="empty">Select one or more POS transaction ranges above. Each selected charge will appear here.</div>';}
-    selected.forEach((range)=>{
-      const row=document.createElement('article');row.className='cart-item';
-      const name=document.createElement('div');name.className='product-name';name.textContent=formatPosRange(range);
-      const spacer=document.createElement('div');
-      const total=document.createElement('div');total.className='item-total';
-      const charge=document.createElement('strong');charge.textContent=money(range.charge);
-      const caption=document.createElement('small');caption.textContent='POS charge';
-      total.append(charge,caption);row.append(name,spacer,total);root.appendChild(row);
-    });
-    $('grandTotal').textContent=money(selected.reduce((sum,r)=>sum+(Number(r.charge)||0),0));
-    $('completeSale').textContent=selected.length?'Complete POS Transaction':'Complete Sale';
+    // POS charges share the same bill and total as selected Cereal/Drinks products.
+    renderCart();
   }
   function renderProductOptions() {
     const root = $('productOptions');
     if(selectedCategory==='POS'){
       renderPosOptions(root);
-      renderPosBill();
       return;
     }
     if(selectedCategory==='Wi-Fi'){
@@ -755,11 +740,14 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function makeId() { return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2); }
   function cartTotal() { return cart.reduce((sum,item)=>sum + item.quantity * item.unitPrice,0); }
   function renderCart() {
-    if (selectedCategory === 'POS') { renderPosBill(); return; }
     const root = $('cartList');
-    $('grandTotal').textContent = money(cartTotal());
-    if (!cart.length) {
-      root.innerHTML = '<div class="empty">Your bill is empty. Tick a product above to begin.</div>';
+    const ranges=getPosRanges();
+    const selectedRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>({index:i,...ranges[i]}));
+    const productTotal=cartTotal();
+    const posTotal=selectedRanges.reduce((sum,r)=>sum+(Number(r.charge)||0),0);
+    $('grandTotal').textContent = money(productTotal+posTotal);
+    if (!cart.length && !selectedRanges.length) {
+      root.innerHTML = '<div class="empty">Your bill is empty. Choose Cereal, Drinks, or POS items above to begin.</div>';
       renderProductOptions();
       return;
     }
@@ -797,6 +785,15 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const lineLabel=document.createElement('small');lineLabel.textContent='Line total';
       totalCol.append(line,lineLabel);row.append(infoCol,qtyCol,totalCol);root.appendChild(row);
     });
+    selectedRanges.forEach(range=>{
+      const row=document.createElement('article');row.className='cart-item';
+      const name=document.createElement('div');name.className='product-name';name.textContent='POS '+formatPosRange(range);
+      const spacer=document.createElement('div');spacer.className='quantity-area';spacer.textContent='1';
+      const total=document.createElement('div');total.className='item-total';
+      const amount=document.createElement('strong');amount.textContent=money(range.charge);
+      total.appendChild(amount);row.append(name,spacer,total);root.appendChild(row);
+    });
+    $('completeSale').textContent=selectedRanges.length?'Complete Sale / POS':'Complete Sale';
     renderProductOptions();
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
