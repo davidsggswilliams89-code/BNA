@@ -611,7 +611,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
   function renderCategoryButtons() {
     const root = $('categoryButtons');
-    const categories = ['Cereal', 'Drinks'];
+    const categories = ['Cereal', 'Drinks', 'POS', 'Wi-Fi'];
     if (!categories.includes(selectedCategory)) selectedCategory = 'Cereal';
     root.innerHTML = '';
     categories.forEach(category => {
@@ -628,7 +628,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       root.appendChild(button);
     });
 
-    // POS and Wi-Fi stay inside the same Home page, matching Cereal and Drinks.
+    // All four categories are real in-page tabs, matching Cereal and Drinks.
     ['POS','Wi-Fi'].forEach(category => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -657,7 +657,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     try { const value=JSON.parse(localStorage.getItem(POS_RANGES_KEY)||'null'); if(Array.isArray(value)&&value.length)return value; } catch(_){}
     return defaultPosRanges.map(x=>({...x}));
   }
-  let selectedPosRange = null;
+  let selectedPosRanges = new Set();
   function formatPosRange(range){
     const amount=n=>Number(n).toLocaleString('en-NG',{maximumFractionDigits:2});
     return '₦'+amount(range.min)+' – ₦'+amount(range.max);
@@ -667,21 +667,34 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     const ranges=getPosRanges();
     ranges.forEach((range,index)=>{
       const label=document.createElement('label');label.className='pos-range-card';
-      const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedPosRange===index;checkbox.setAttribute('aria-label','Select POS range '+formatPosRange(range));
+      const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedPosRanges.has(index);checkbox.setAttribute('aria-label','Select POS range '+formatPosRange(range));
       const name=document.createElement('span');name.className='pos-range-label';name.textContent=formatPosRange(range);
       const charge=document.createElement('strong');charge.className='pos-range-charge';charge.textContent='Charge '+money(range.charge);
       checkbox.addEventListener('change',()=>{
-        selectedPosRange=checkbox.checked?index:null;
+        if(checkbox.checked) selectedPosRanges.add(index); else selectedPosRanges.delete(index);
         renderPosOptions(root);
-        const cartRoot=$('cartList');
-        if(selectedPosRange===null){cartRoot.innerHTML='<div class="empty">Select a POS amount range above.</div>';}
-        else {cartRoot.innerHTML='<div class="cart-item"><div class="product-name">POS charge</div><div></div><div class="item-total"><strong>'+money(getPosRanges()[selectedPosRange].charge)+'</strong></div></div>';}
-        $('grandTotal').textContent=selectedPosRange===null?money(0):money(getPosRanges()[selectedPosRange].charge);
-        $('completeSale').textContent=selectedPosRange===null?'Complete POS':'Complete POS Transaction';
+        renderPosBill();
       });
       label.append(checkbox,name,charge);root.appendChild(label);
     });
     if(!ranges.length)root.innerHTML='<div class="no-products">No POS ranges configured. Ask an administrator to configure POS charges in Store.</div>';
+  }
+  function renderPosBill(){
+    const ranges=getPosRanges();
+    const selected=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>({index:i,...ranges[i]}));
+    const root=$('cartList');root.innerHTML='';
+    if(!selected.length){root.innerHTML='<div class="empty">Select one or more POS transaction ranges above. Each selected charge will appear here.</div>';}
+    selected.forEach((range)=>{
+      const row=document.createElement('article');row.className='cart-item';
+      const name=document.createElement('div');name.className='product-name';name.textContent=formatPosRange(range);
+      const spacer=document.createElement('div');
+      const total=document.createElement('div');total.className='item-total';
+      const charge=document.createElement('strong');charge.textContent=money(range.charge);
+      const caption=document.createElement('small');caption.textContent='POS charge';
+      total.append(charge,caption);row.append(name,spacer,total);root.appendChild(row);
+    });
+    $('grandTotal').textContent=money(selected.reduce((sum,r)=>sum+(Number(r.charge)||0),0));
+    $('completeSale').textContent=selected.length?'Complete POS Transaction':'Complete Sale';
   }
   function renderProductOptions() {
     const root = $('productOptions');
@@ -794,11 +807,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   async function completeSale() {
     if(selectedCategory==='POS'){
       if(!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)){setNotice('Please sign in with an authorized account first.','error');return;}
-      if(selectedPosRange===null){setNotice('Select a POS transaction amount range first.','error');return;}
-      const ranges=getPosRanges(),range=ranges[selectedPosRange];if(!range){setNotice('Selected POS range is no longer available.','error');return;}
-      const posRecord={id:makeId(),type:'POS',rangeMin:Number(range.min),rangeMax:Number(range.max),charge:Number(range.charge),total:Number(range.charge),date:new Date().toISOString(),createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};
-      try{await db.collection('posTransactions').doc(String(posRecord.id)).set(posRecord);setNotice('POS charge recorded: '+money(posRecord.charge)+'.','success');selectedPosRange=null;renderProductOptions();$('cartList').innerHTML='<div class="empty">Your POS bill is empty. Select a range above.</div>';renderAccount(activeAccountPeriod);await refreshAccountSales();}
-      catch(error){console.error('POS transaction save failed:',error);setNotice('POS transaction could not be saved to Firebase. Check Firestore rules.','error');}
+      const ranges=getPosRanges(),chosen=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
+      if(!chosen.length){setNotice('Select one or more POS transaction ranges first.','error');return;}
+      const now=new Date().toISOString();
+      try{
+        const batch=db.batch();
+        chosen.forEach(range=>{const posRecord={id:makeId(),type:'POS',rangeMin:Number(range.min),rangeMax:Number(range.max),charge:Number(range.charge),total:Number(range.charge),date:now,createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};batch.set(db.collection('posTransactions').doc(String(posRecord.id)),posRecord);});
+        await batch.commit();
+        const total=chosen.reduce((sum,range)=>sum+(Number(range.charge)||0),0);
+        setNotice(chosen.length+' POS charge(s) recorded. Total charges: '+money(total)+'.','success');selectedPosRanges.clear();renderProductOptions();renderPosBill();renderAccount(activeAccountPeriod);await refreshAccountSales();
+      }
+      catch(error){console.error('POS transaction save failed:',error);setNotice('POS transactions could not be saved to Firebase. Check Firestore rules.','error');}
       return;
     }
     if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) { setNotice('Please sign in with an authorized account first.', 'error'); return; }
