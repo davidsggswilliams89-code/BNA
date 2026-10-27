@@ -1,29 +1,28 @@
-'use strict';
-const CACHE_NAME='bna-business-shell-v2';
-const APP_FILES=[
- './','./index.html','./POS.html','./accounts.html','./drinks.html',
- './store.html','./transactions.html','./README.md',
- 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
- 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js',
- 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js'
-];
-self.addEventListener('install',event=>event.waitUntil((async()=>{
- const cache=await caches.open(CACHE_NAME);
- await Promise.all(APP_FILES.map(async path=>{try{const response=await fetch(path,{cache:'reload'});if(response.ok)await cache.put(path,response)}catch(_){}}));
- await self.skipWaiting();
-})()));
-self.addEventListener('activate',event=>event.waitUntil((async()=>{
- const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('bna-business-shell-')&&k!==CACHE_NAME).map(k=>caches.delete(k)));await self.clients.claim();
-})()));
-self.addEventListener('fetch',event=>{
- const req=event.request;if(req.method!=='GET')return;
- const url=new URL(req.url),sameOrigin=url.origin===self.location.origin;
- const isFirebaseScript=url.hostname==='www.gstatic.com'&&url.pathname.includes('/firebasejs/');
- if(!sameOrigin&&!isFirebaseScript)return;
- event.respondWith((async()=>{
-  const cache=await caches.open(CACHE_NAME);const cached=await cache.match(req,{ignoreSearch:true});
-  try{const response=await fetch(req);if(response&&response.ok)cache.put(req,response.clone()).catch(()=>{});return response}
-  catch(_){if(cached)return cached;if(req.mode==='navigate'){const fallback=await cache.match('./index.html')||await cache.match('./');if(fallback)return fallback}
-   return new Response('Offline: this resource has not been cached on this device yet.',{status:503,headers:{'Content-Type':'text/plain;charset=utf-8'}})}
- })());
+/* BNA app shell cache. Firebase/auth/database requests are never cached here. */
+const CACHE_NAME = 'bna-app-shell-v1';
+const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('bna-app-shell-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // Do not cache Firebase or third-party requests.
+  if (request.mode === 'navigate') {
+    event.respondWith(fetch(request).then(response => {
+      if (response && response.ok) caches.open(CACHE_NAME).then(cache => cache.put('./index.html', response.clone()));
+      return response;
+    }).catch(() => caches.match('./index.html').then(cached => cached || caches.match('./'))));
+    return;
+  }
+  event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
+    if (response && response.ok && url.origin === self.location.origin) {
+      const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    }
+    return response;
+  })));
 });
