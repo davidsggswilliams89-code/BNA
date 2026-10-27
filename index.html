@@ -322,6 +322,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 /* POS ranges are rendered inside the same Home bill, not a separate page. */
 .pos-settings{background:#fff;border:1px solid #e4eaf3;border-radius:14px;padding:14px;margin:12px 0}
 .pos-settings h2{margin:0 0 12px;color:#084298;font-size:1rem}
+.stock-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.stock-tile{border:1px solid #e1e7ef;border-radius:10px;padding:10px;background:#fff;min-width:0}.stock-tile strong{display:block;font-size:1rem}.stock-tile small{display:block;color:#64748b;margin-top:4px}.stock-tile input{width:100%;box-sizing:border-box;padding:8px;border:1px solid #cfd8e6;border-radius:7px;margin-top:6px}.stock-table{width:100%;border-collapse:collapse;margin-top:10px}.stock-table td,.stock-table th{padding:8px 5px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:.88rem}.stock-table th{color:#64748b}
 .pos-range-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .pos-range-form input{min-width:0;width:100%;padding:8px;border:1px solid #cfd8e6;border-radius:7px}
 #productOptions.pos-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:none;overflow:visible;margin-bottom:18px}
@@ -410,6 +411,22 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <div id="wifiSettingsRows" class="pos-range-form"></div>
       <div class="pos-actions"><button class="btn btn-primary" id="saveWifiPrices" type="button">Save Wi-Fi prices</button></div>
       <p class="hint" id="wifiSettingsStatus" role="status"></p>
+    </section>
+    <section class="pos-settings" id="wifiStockPanel" hidden>
+      <h2>Wi-Fi Ticket Stock</h2>
+      <p class="hint">Enter the starting quantity for each ticket price. Completed Wi-Fi sales increase Sold and reduce Remaining.</p>
+      <div id="wifiStockRows" class="stock-grid"></div>
+      <div class="pos-actions"><button class="btn btn-primary" id="saveWifiStock" type="button">Save Wi-Fi stock</button></div>
+      <p class="hint" id="wifiStockStatus" role="status"></p>
+    </section>
+    <section class="pos-settings" id="posFloatPanel" hidden>
+      <h2>POS Float & Revenue</h2>
+      <p class="hint">Enter the starting POS float. Every completed POS sale adds its charge to earned revenue and tracked value. Transfer principal is not deducted in this version.</p>
+      <label for="posStartingFloat">Starting POS float (₦)</label>
+      <input id="posStartingFloat" type="number" min="0" step="1" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd8e6;border-radius:8px;margin:6px 0 12px">
+      <div class="stock-grid"><div class="stock-tile"><small>Starting float</small><strong id="posFloatDisplay">₦0</strong></div><div class="stock-tile"><small>Charges earned</small><strong id="posRevenueDisplay">₦0</strong></div><div class="stock-tile"><small>Total tracked value</small><strong id="posTrackedDisplay">₦0</strong></div><div class="stock-tile"><small>POS transactions</small><strong id="posTxnCountDisplay">0</strong></div></div>
+      <div class="pos-actions"><button class="btn btn-primary" id="savePosFloat" type="button">Save POS float</button></div>
+      <p class="hint" id="posFloatStatus" role="status"></p>
     </section>
     <section class="summary-grid" aria-label="Inventory summary">
       <div class="summary"><small>PRODUCT TYPES</small><strong id="productCount">0</strong></div>
@@ -663,6 +680,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   let selectedPosRanges = new Set();
   const WIFI_PRICES_KEY='bna_wifi_ticket_prices_v1';
+  const WIFI_STOCK_KEY='bna_wifi_ticket_stock_v1';
+  const POS_FLOAT_KEY='bna_pos_float_revenue_v1';
+  function getWifiStock(){try{const v=JSON.parse(localStorage.getItem(WIFI_STOCK_KEY)||'{}');return v&&typeof v==='object'?v:{}}catch(_){return {}}} window.bnaGetWifiStock=getWifiStock;
+  function getPosFloat(){try{return JSON.parse(localStorage.getItem(POS_FLOAT_KEY)||'{"startingFloat":0,"revenue":0,"transactions":0}')||{startingFloat:0,revenue:0,transactions:0}}catch(_){return {startingFloat:0,revenue:0,transactions:0}}} window.bnaGetPosFloat=getPosFloat;
+  function setPosFloat(v){localStorage.setItem(POS_FLOAT_KEY,JSON.stringify(v))}
+  function updateWifiStockAfterSale(tickets){const stock=getWifiStock();tickets.forEach(t=>{const k=String(t.price);const item=stock[k]||{initial:0,sold:0};item.sold=(Number(item.sold)||0)+(Number(t.quantity)||0);stock[k]=item});localStorage.setItem(WIFI_STOCK_KEY,JSON.stringify(stock))}
+  function updatePosRevenueAfterSale(items){const posItems=items||[];const revenue=posItems.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);if(!revenue)return;const state=getPosFloat();state.revenue=(Number(state.revenue)||0)+revenue;state.transactions=(Number(state.transactions)||0)+posItems.reduce((sum,item)=>sum+(Number(item.quantity)||0),0);setPosFloat(state)}
   const defaultWifiPrices=[300,400,500,4000];
   function getWifiPrices(){try{const v=JSON.parse(localStorage.getItem(WIFI_PRICES_KEY)||'null');if(Array.isArray(v)&&v.length)return v.map(Number).filter(n=>Number.isFinite(n)&&n>=0)}catch(_){}return [...defaultWifiPrices]}
   let selectedWifiPrices=new Set();
@@ -893,6 +917,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         savedRecords.push({category,total});
       });
       await batch.commit();
+      updateWifiStockAfterSale(chosenWifi);
+      updatePosRevenueAfterSale(grouped.POS);
       if(cart.length){
         try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}
       }
@@ -1054,8 +1080,18 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       ranges.forEach((r,i)=>{const row=document.createElement('div');row.className='pos-range-form';row.style.margin='8px 0';row.innerHTML=`<input type="number" min="1" step="0.01" aria-label="Range ${i+1} minimum" placeholder="Minimum ₦" value="${Number(r.min)||1}"><input type="number" min="1" step="0.01" aria-label="Range ${i+1} maximum" placeholder="Maximum ₦" value="${Number(r.max)||1000}"><input type="number" min="0" step="0.01" aria-label="Range ${i+1} charge" placeholder="Charge ₦" value="${Number(r.charge)||0}"><button class="btn btn-danger" type="button" style="grid-column:1/-1">Remove range</button>`;row.querySelector('button').addEventListener('click',()=>{row.remove()});root.appendChild(row)});
       let wifi=[];try{wifi=JSON.parse(localStorage.getItem('bna_wifi_ticket_prices_v1')||'null')}catch(_){}if(!Array.isArray(wifi)||!wifi.length)wifi=[300,400,500,4000];const wr=byId('wifiSettingsRows');if(wr){wr.innerHTML='';wifi.forEach((price,i)=>{const input=document.createElement('input');input.type='number';input.min='0';input.step='1';input.value=Number(price)||0;input.setAttribute('aria-label','Wi-Fi ticket price '+(i+1));input.placeholder='Ticket price ₦';wr.appendChild(input)})}
     }
+    function renderStockPanels(){
+      const allowed=isAdmin();['wifiStockPanel','posFloatPanel'].forEach(id=>{const el=byId(id);if(el)el.hidden=!allowed});if(!allowed)return;
+      const prices=(()=>{try{const v=JSON.parse(localStorage.getItem('bna_wifi_ticket_prices_v1')||'null');return Array.isArray(v)&&v.length?v.map(Number):[300,400,500,4000]}catch(_){return [300,400,500,4000]}})();
+      const stock=(()=>{try{return JSON.parse(localStorage.getItem('bna_wifi_ticket_stock_v1')||'{}')||{}}catch(_){return {}}})();
+      const root=byId('wifiStockRows');if(root){root.innerHTML='';prices.forEach(price=>{const item=stock[String(price)]||{initial:0,sold:0};const remaining=Math.max(0,(Number(item.initial)||0)-(Number(item.sold)||0));const tile=document.createElement('div');tile.className='stock-tile';tile.innerHTML=`<strong>₦${Number(price).toLocaleString('en-NG')}</strong><small>Sold: ${Number(item.sold)||0} · Remaining: ${remaining}</small><label>Starting stock</label><input type="number" min="0" step="1" value="${Number(item.initial)||0}" data-price="${price}" aria-label="Starting stock for ₦${price}">`;root.appendChild(tile)})}
+      const state=(()=>{try{return JSON.parse(localStorage.getItem('bna_pos_float_revenue_v1')||'{"startingFloat":0,"revenue":0,"transactions":0}')||{}}catch(_){return {}}})();
+      if(byId('posStartingFloat'))byId('posStartingFloat').value=Number(state.startingFloat)||0;
+      const fmt=n=>'₦'+(Number(n)||0).toLocaleString('en-NG',{maximumFractionDigits:0});
+      if(byId('posFloatDisplay'))byId('posFloatDisplay').textContent=fmt(state.startingFloat);if(byId('posRevenueDisplay'))byId('posRevenueDisplay').textContent=fmt(state.revenue);if(byId('posTrackedDisplay'))byId('posTrackedDisplay').textContent=fmt((Number(state.startingFloat)||0)+(Number(state.revenue)||0));if(byId('posTxnCountDisplay'))byId('posTxnCountDisplay').textContent=Number(state.transactions)||0;
+    }
     function updateStoreAccess(){
-      const allowed=isAdmin();renderPosSettings();
+      const allowed=isAdmin();renderPosSettings();renderStockPanels();
       byId('showProductForm').hidden=!allowed;
       document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{if(el.id!=='cancelEdit')el.disabled=!allowed});
       if(!allowed){byId('productFormPanel').hidden=true;byId('syncStatus').textContent='Store management is restricted to administrators.';}
@@ -1198,7 +1234,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
     byId('addPosRange').addEventListener('click',()=>{const root=byId('posSettingsRows');const row=document.createElement('div');row.className='pos-range-form';row.style.margin='8px 0';row.innerHTML='<input type="number" min="1" step="0.01" placeholder="Minimum ₦" aria-label="Range minimum"><input type="number" min="1" step="0.01" placeholder="Maximum ₦" aria-label="Range maximum"><input type="number" min="0" step="0.01" placeholder="Charge ₦" aria-label="Range charge"><button class="btn btn-danger" type="button" style="grid-column:1/-1">Remove range</button>';row.querySelector('button').onclick=()=>row.remove();root.appendChild(row)});
     byId('savePosRanges').addEventListener('click',()=>{if(!isAdmin()){byId('posSettingsStatus').textContent='Administrator access required.';return}const ranges=[...byId('posSettingsRows').querySelectorAll('.pos-range-form')].map(row=>{const fields=row.querySelectorAll('input');return {min:Number(fields[0].value),max:Number(fields[1].value),charge:Number(fields[2].value)}});if(!ranges.length||ranges.some(r=>!Number.isFinite(r.min)||!Number.isFinite(r.max)||!Number.isFinite(r.charge)||r.min<1||r.max<r.min||r.charge<0)){byId('posSettingsStatus').textContent='Enter valid minimum, maximum, and charge values for every range.';return}ranges.sort((a,b)=>a.min-b.min);localStorage.setItem('bna_pos_charge_ranges_v1',JSON.stringify(ranges));byId('posSettingsStatus').textContent='POS charge ranges saved on this device.';if(typeof window.bnaReloadProducts==='function')window.bnaReloadProducts()});
-    byId('saveWifiPrices').addEventListener('click',()=>{if(!isAdmin()){byId('wifiSettingsStatus').textContent='Administrator access required.';return}const prices=[...byId('wifiSettingsRows').querySelectorAll('input')].map(x=>Number(x.value));if(!prices.length||prices.some(x=>!Number.isFinite(x)||x<0)){byId('wifiSettingsStatus').textContent='Enter valid Wi-Fi ticket prices.';return}localStorage.setItem('bna_wifi_ticket_prices_v1',JSON.stringify(prices));byId('wifiSettingsStatus').textContent='Wi-Fi ticket prices saved on this device.';});
+    byId('saveWifiPrices').addEventListener('click',()=>{if(!isAdmin()){byId('wifiSettingsStatus').textContent='Administrator access required.';return}const prices=[...byId('wifiSettingsRows').querySelectorAll('input')].map(x=>Number(x.value));if(!prices.length||prices.some(x=>!Number.isFinite(x)||x<0)){byId('wifiSettingsStatus').textContent='Enter valid Wi-Fi ticket prices.';return}localStorage.setItem('bna_wifi_ticket_prices_v1',JSON.stringify(prices));byId('wifiSettingsStatus').textContent='Wi-Fi ticket prices saved on this device.';renderStockPanels();});
+    byId('saveWifiStock').addEventListener('click',()=>{if(!isAdmin()){byId('wifiStockStatus').textContent='Administrator access required.';return}const stock=window.bnaGetWifiStock?window.bnaGetWifiStock():{};const prices=(()=>{try{return JSON.parse(localStorage.getItem('bna_wifi_ticket_prices_v1')||'[300,400,500,4000]')}catch(_){return [300,400,500,4000]}})();for(const price of prices){const input=byId('wifiStockRows').querySelector(`input[data-price="${price}"]`);if(!input)continue;const initial=Math.max(0,Math.floor(Number(input.value)||0));const old=stock[String(price)]||{sold:0};stock[String(price)]={initial,sold:Number(old.sold)||0};}localStorage.setItem(WIFI_STOCK_KEY,JSON.stringify(stock));byId('wifiStockStatus').textContent='Wi-Fi ticket stock saved on this device.';renderStockPanels();});
+    byId('savePosFloat').addEventListener('click',()=>{if(!isAdmin()){byId('posFloatStatus').textContent='Administrator access required.';return}const amount=Math.max(0,Number(byId('posStartingFloat').value)||0);const state=window.bnaGetPosFloat?window.bnaGetPosFloat():{startingFloat:0,revenue:0,transactions:0};state.startingFloat=amount;localStorage.setItem('bna_pos_float_revenue_v1',JSON.stringify(state));byId('posFloatStatus').textContent='Starting POS float saved on this device.';renderStockPanels();});
     addSubQuantity('','');updatePreview();updateStoreAccess();
   
 })();
