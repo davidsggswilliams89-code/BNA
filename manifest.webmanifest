@@ -1,6 +1,7 @@
+
 {
   "id": "./",
-  "name": "B-N-A Gusau Business",
+  "name": "BNA Gusau Business",
   "short_name": "BNA Business",
   "description": "BNA Gusau Business sales, inventory, accounts and loan management.",
   "start_url": "./index.html",
@@ -12,19 +13,19 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "./icons/icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
