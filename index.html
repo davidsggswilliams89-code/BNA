@@ -314,10 +314,6 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 .auth-card label{display:block;font-weight:700;margin:14px 0 6px}.auth-card input{width:100%;min-height:46px;border:1px solid #cfd5df;border-radius:10px;padding:10px 12px;font:inherit}
 .auth-card button{width:100%;margin-top:14px;min-height:46px;border:0;border-radius:10px;background:#0759b8;color:#fff;font:inherit;font-weight:800}
 #authMessage{margin-top:12px;padding:10px;border-radius:9px;background:#eef4ff;color:#23456f;font-size:.9rem;overflow-wrap:anywhere}
-#authGate.session-checking #authMessage{display:none!important}
-#authGate.session-checking .auth-card{box-shadow:none;border-color:transparent;background:transparent}
-#authGate.session-checking{background:transparent;pointer-events:none}
-#authGate.session-checking .auth-card h1{display:none}
 #authMessage.error{background:#fff0f0;color:#9b1c1c}
 #authBar{display:none!important}
 #authBar button{display:none!important}
@@ -570,9 +566,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   // Keep the auth gate covering the app until Firebase restores the session AND the correct view is ready.
   // This prevents the default Home view from flashing before hash-based navigation is restored.
   authGate.hidden = false;
-  authGate.classList.add('session-checking');
   authForm.hidden = true;
   $('authSignOut').hidden = true;
+  authStatus('Checking saved login session…');
   let bnaAuthInitialized = false;
   let signedOutGateTimer = null;
   // Explicitly persist Firebase login across page refreshes and browser restarts.
@@ -591,7 +587,6 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   function authStatus(message, isError=false){ authMessage.textContent=message; authMessage.classList.toggle('error',!!isError); }
   function showSignedOut(message){
-    authGate.classList.remove('session-checking');
     authGate.hidden=false; $('authBar').style.display='none'; $('authForm').hidden=false;
     $('authSignOut').hidden=true; $('authSubmit').disabled=false;
     if(message) authStatus(message,true);
@@ -610,9 +605,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       // Avoid flashing the login gate while Firebase is restoring a saved session.
       bnaAuthInitialized=true;
       authGate.hidden=false;
-      authGate.classList.add('session-checking');
       authForm.hidden=true;
       $('authSignOut').hidden=true;
+      authStatus('Checking saved login session…');
       signedOutGateTimer=setTimeout(()=>{
         if(!auth.currentUser){
           showSignedOut('Sign in with your authorized business account.');
@@ -623,9 +618,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
     // Keep the gate visible while role verification and target-page restoration run.
     authGate.hidden=false;
-    authGate.classList.add('session-checking');
     authForm.hidden=true;
     $('authSignOut').hidden=true;
+    authStatus('Restoring your session…');
     try {
       let role='';
       try { const roleSnap=await db.collection('users').doc(user.uid).get(); role=roleSnap.exists ? String(roleSnap.data().role||'').toLowerCase() : ''; }
@@ -655,7 +650,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       // Reveal the app only after the intended section has been restored.
       authGate.hidden=true;
     } catch(error){
-      console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false}; authGate.classList.remove('session-checking'); authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false;
+      console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false}; authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false;
       authStatus('Could not verify your role from Firestore. Check the users document and Firestore rules. '+(error.code||''),true);
       $('authForm').hidden=true; $('authSignOut').hidden=false;
     }
