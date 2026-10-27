@@ -563,8 +563,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const $ = id => document.getElementById(id);
   window.bnaAuthState = { user:null, role:null, ready:false };
   const authGate = $('authGate'), authForm = $('authForm'), authMessage = $('authMessage');
-  // Keep the app shell hidden behind auth while Firebase restores the existing session.
-  authGate.hidden = true;
+  // Keep the auth gate covering the app until Firebase restores the session AND the correct view is ready.
+  // This prevents the default Home view from flashing before hash-based navigation is restored.
+  authGate.hidden = false;
+  authForm.hidden = true;
+  $('authSignOut').hidden = true;
+  authStatus('Checking saved login session…');
   let bnaAuthInitialized = false;
   let signedOutGateTimer = null;
   // Explicitly persist Firebase login across page refreshes and browser restarts.
@@ -592,7 +596,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     try { await auth.signInWithEmailAndPassword($('authEmail').value.trim(),$('authPassword').value); }
     catch(error){ console.error(error); authStatus(error.code==='auth/invalid-credential'?'Email or password is incorrect.':(error.message||'Sign-in failed.'),true); $('authSubmit').disabled=false; }
   });
-  async function signOutBna(){ try { localStorage.removeItem(ROLE_CACHE_KEY); await auth.signOut(); } catch(error){ authStatus(error.message||'Could not sign out.',true); } }
+  async function signOutBna(){ try { authGate.hidden=false; authForm.hidden=true; $('authSignOut').hidden=true; authStatus('Signing out…'); localStorage.removeItem(ROLE_CACHE_KEY); await auth.signOut(); } catch(error){ authStatus(error.message||'Could not sign out.',true); } }
   $('signOutButton').addEventListener('click',signOutBna); $('authSignOut').addEventListener('click',signOutBna);
   auth.onAuthStateChanged(async user=>{
     if(signedOutGateTimer){clearTimeout(signedOutGateTimer);signedOutGateTimer=null;}
@@ -600,6 +604,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     if(!user){
       // Avoid flashing the login gate while Firebase is restoring a saved session.
       bnaAuthInitialized=true;
+      authGate.hidden=false;
+      authForm.hidden=true;
+      $('authSignOut').hidden=true;
+      authStatus('Checking saved login session…');
       signedOutGateTimer=setTimeout(()=>{
         if(!auth.currentUser){
           showSignedOut('Sign in with your authorized business account.');
@@ -608,7 +616,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       },1200);
       return;
     }
-    authGate.hidden=true;
+    // Keep the gate visible while role verification and target-page restoration run.
+    authGate.hidden=false;
+    authForm.hidden=true;
+    $('authSignOut').hidden=true;
     authStatus('Restoring your session…');
     try {
       let role='';
@@ -621,7 +632,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       }
       window.bnaAuthState={user,role,ready:true};
       try{localStorage.setItem(ROLE_CACHE_KEY,JSON.stringify({uid:user.uid,role,verifiedAt:Date.now()}))}catch(_){}
-      authGate.hidden=true; $('authBar').style.display='flex';
+      $('authBar').style.display='flex';
       $('authIdentity').textContent=(user.email||user.uid)+' · '+(role==='admin'?'Administrator':'Cashier');
       const storeLink=document.querySelector('.nav-inner a[data-view="storeView"]');
       if(storeLink) storeLink.style.display=role==='admin'?'flex':'none';
@@ -636,6 +647,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       setTimeout(syncOfflineSales,700);
       if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
       restoreCurrentView();
+      // Reveal the app only after the intended section has been restored.
+      authGate.hidden=true;
     } catch(error){
       console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false}; authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false;
       authStatus('Could not verify your role from Firestore. Check the users document and Firestore rules. '+(error.code||''),true);
