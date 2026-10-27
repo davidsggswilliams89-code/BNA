@@ -666,6 +666,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const defaultWifiPrices=[300,400,500,4000];
   function getWifiPrices(){try{const v=JSON.parse(localStorage.getItem(WIFI_PRICES_KEY)||'null');if(Array.isArray(v)&&v.length)return v.map(Number).filter(n=>Number.isFinite(n)&&n>=0)}catch(_){}return [...defaultWifiPrices]}
   let selectedWifiPrices=new Set();
+  const selectedWifiQuantities=new Map();
+  function wifiMoney(n){return '₦'+(Number(n)||0).toLocaleString('en-NG',{maximumFractionDigits:0});}
   function formatPosRange(range){
     const amount=n=>Number(n).toLocaleString('en-NG',{maximumFractionDigits:2});
     return amount(range.min)+' to '+amount(range.max);
@@ -692,11 +694,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function renderWifiOptions(root){
     root.classList.add('pos-options');root.innerHTML='';
     getWifiPrices().forEach((price,index)=>{
-      const label=document.createElement('label');label.className='pos-range-card';
-      const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedWifiPrices.has(index);checkbox.setAttribute('aria-label','Select Wi-Fi ticket '+money(price));
-      const name=document.createElement('span');name.className='pos-range-label';name.textContent=money(price);
-      checkbox.addEventListener('change',()=>{if(checkbox.checked)selectedWifiPrices.add(index);else selectedWifiPrices.delete(index);renderWifiOptions(root);renderCart();});
-      label.append(checkbox,name);root.appendChild(label);
+      const label=document.createElement('div');label.className='pos-range-card';label.style.cursor='default';
+      const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedWifiPrices.has(index);checkbox.setAttribute('aria-label','Select Wi-Fi ticket '+wifiMoney(price));
+      const name=document.createElement('span');name.className='pos-range-label';name.textContent=wifiMoney(price);name.style.whiteSpace='nowrap';
+      const controls=document.createElement('div');controls.style.cssText='display:flex;align-items:center;gap:3px;flex-shrink:0';
+      const minus=document.createElement('button');minus.type='button';minus.className='qty-btn';minus.textContent='−';minus.style.cssText='width:28px;height:28px;flex-basis:28px;font-size:1rem';minus.setAttribute('aria-label','Decrease '+wifiMoney(price)+' tickets');
+      const qty=document.createElement('span');qty.textContent=String(selectedWifiQuantities.get(index)||1);qty.style.cssText='min-width:16px;text-align:center;font-weight:800;font-size:.85rem';
+      const plus=document.createElement('button');plus.type='button';plus.className='qty-btn';plus.textContent='+';plus.style.cssText='width:28px;height:28px;flex-basis:28px;font-size:1rem';plus.setAttribute('aria-label','Increase '+wifiMoney(price)+' tickets');
+      checkbox.addEventListener('change',()=>{if(checkbox.checked){selectedWifiPrices.add(index);if(!selectedWifiQuantities.has(index))selectedWifiQuantities.set(index,1);}else{selectedWifiPrices.delete(index);selectedWifiQuantities.delete(index);}renderWifiOptions(root);renderCart();});
+      minus.addEventListener('click',()=>{if(!selectedWifiPrices.has(index))return;const q=Math.max(1,(selectedWifiQuantities.get(index)||1)-1);selectedWifiQuantities.set(index,q);renderWifiOptions(root);renderCart();});
+      plus.addEventListener('click',()=>{if(!selectedWifiPrices.has(index)){selectedWifiPrices.add(index);selectedWifiQuantities.set(index,1);}else selectedWifiQuantities.set(index,(selectedWifiQuantities.get(index)||1)+1);renderWifiOptions(root);renderCart();});
+      controls.append(minus,qty,plus);label.append(checkbox,name,controls);root.appendChild(label);
     });
     if(!root.children.length)root.innerHTML='<div class="no-products">No Wi-Fi ticket prices configured. Ask an administrator to add prices in Store.</div>';
   }
@@ -768,10 +776,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     const root = $('cartList');
     const ranges=getPosRanges();
     const selectedRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>({index:i,...ranges[i]}));
-    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({index:i,price:wifiPrices[i]}));
+    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({index:i,price:wifiPrices[i],quantity:selectedWifiQuantities.get(i)||1}));
     const productTotal=cartTotal();
     const posTotal=selectedRanges.reduce((sum,r)=>sum+(Number(r.charge)||0),0);
-    const wifiTotal=chosenWifi.reduce((sum,w)=>sum+(Number(w.price)||0),0);
+    const wifiTotal=chosenWifi.reduce((sum,w)=>sum+(Number(w.price)||0)*(selectedWifiQuantities.get(w.index)||1),0);
     $('grandTotal').textContent = money(productTotal+posTotal+wifiTotal);
     if (!cart.length && !selectedRanges.length && !chosenWifi.length) {
       root.innerHTML = '<div class="empty">Your bill is empty. Choose Cereal, Drinks, POS, or Wi-Fi tickets above to begin.</div>';
@@ -820,7 +828,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const amount=document.createElement('strong');amount.textContent=money(range.charge);
       total.appendChild(amount);row.append(name,spacer,total);root.appendChild(row);
     });
-    chosenWifi.forEach(ticket=>{const row=document.createElement('article');row.className='cart-item';const name=document.createElement('div');name.className='product-name';name.textContent='Wi-Fi '+money(ticket.price);const qty=document.createElement('div');qty.className='quantity-area';qty.textContent='1 ticket';const total=document.createElement('div');total.className='item-total';const amount=document.createElement('strong');amount.textContent=money(ticket.price);total.appendChild(amount);row.append(name,qty,total);root.appendChild(row);});
+    chosenWifi.forEach(ticket=>{const row=document.createElement('article');row.className='cart-item';const name=document.createElement('div');name.className='product-name';name.textContent='Wi-Fi '+wifiMoney(ticket.price);const qty=document.createElement('div');qty.className='quantity-area';qty.textContent=ticket.quantity+' ticket'+(ticket.quantity===1?'':'s')+' × '+wifiMoney(ticket.price);const total=document.createElement('div');total.className='item-total';const amount=document.createElement('strong');amount.textContent=wifiMoney(ticket.price*ticket.quantity);total.appendChild(amount);row.append(name,qty,total);root.appendChild(row);});
     $('completeSale').textContent=(selectedRanges.length||chosenWifi.length)?'Complete Sale / '+[selectedRanges.length?'POS':'',chosenWifi.length?'Wi-Fi':''].filter(Boolean).join(' + '):'Complete Sale';
     renderProductOptions();
   }
@@ -831,7 +839,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
     const ranges=getPosRanges();
     const chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
-    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>wifiPrices[i]);
+    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({price:wifiPrices[i],quantity:selectedWifiQuantities.get(i)||1}));
     if(!cart.length && !chosenRanges.length && !chosenWifi.length){setNotice('Add products or select a POS charge or Wi-Fi ticket before completing the sale.','error');return;}
 
     // Refresh stock before writing, then save each category as its own sales record
@@ -863,7 +871,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       grouped[category].push({...item,category});
     });
     chosenRanges.forEach(range=>{const id=makeId(),charge=Number(range.charge)||0;grouped.POS.push({cartId:id,productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:charge,rangeMin:Number(range.min),rangeMax:Number(range.max)});});
-    chosenWifi.forEach(price=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+money(price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:1,unitPrice:Number(price)}));
+    chosenWifi.forEach(ticket=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(ticket.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:ticket.quantity,unitPrice:Number(ticket.price)}));
 
     try{
       const batch=db.batch();
@@ -896,7 +904,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       }
       const receipt=savedRecords.map(record=>record.category+': '+money(record.total)).join('\n');
       const combinedTotal=savedRecords.reduce((sum,record)=>sum+record.total,0);
-      cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();
+      cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();selectedWifiQuantities.clear();
       await readProducts();
       renderProductOptions();renderCart();
       await refreshAccountSales();renderHistory();
