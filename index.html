@@ -635,14 +635,23 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const POS_RANGES_KEY = 'bna_pos_charge_ranges_v1';
   const defaultPosRanges = [
     {min:1,max:1000,charge:15},
-    {min:1000.01,max:5000,charge:100},
-    {min:5000.01,max:10000,charge:100},
-    {min:10000.01,max:15000,charge:200},
-    {min:15000.01,max:20000,charge:200},
-    {min:20000.01,max:25000,charge:300}
+    {min:1000,max:5000,charge:100},
+    {min:5000,max:10000,charge:100},
+    {min:10000,max:15000,charge:200},
+    {min:15000,max:20000,charge:200},
+    {min:20000,max:25000,charge:300}
   ];
   function getPosRanges(){
-    try { const value=JSON.parse(localStorage.getItem(POS_RANGES_KEY)||'null'); if(Array.isArray(value)&&value.length)return value; } catch(_){}
+    // Migrate the old built-in decimal boundaries to the requested round figures.
+    try {
+      const value=JSON.parse(localStorage.getItem(POS_RANGES_KEY)||'null');
+      if(Array.isArray(value)&&value.length){
+        const oldDefaults=[[1,1000],[1000.01,5000],[5000.01,10000],[10000.01,15000],[15000.01,20000],[20000.01,25000]];
+        const isOldDefault=value.length===oldDefaults.length&&value.every((r,i)=>Number(r.min)===oldDefaults[i][0]&&Number(r.max)===oldDefaults[i][1]);
+        if(isOldDefault){const migrated=defaultPosRanges.map((r,i)=>({...r,charge:Number(value[i].charge??r.charge)}));localStorage.setItem(POS_RANGES_KEY,JSON.stringify(migrated));return migrated;}
+        return value;
+      }
+    } catch(_){}
     return defaultPosRanges.map(x=>({...x}));
   }
   let selectedPosRanges = new Set();
@@ -1027,7 +1036,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     function renderPosSettings(){
       const panel=byId('posSettingsPanel');if(!panel)return;panel.hidden=!isAdmin();if(!isAdmin())return;
       let ranges=[];try{ranges=JSON.parse(localStorage.getItem('bna_pos_charge_ranges_v1')||'null')}catch(_){}
-      if(!Array.isArray(ranges)||!ranges.length)ranges=[{min:1,max:1000,charge:15},{min:1000.01,max:5000,charge:100},{min:5000.01,max:10000,charge:100},{min:10000.01,max:15000,charge:200},{min:15000.01,max:20000,charge:200},{min:20000.01,max:25000,charge:300}];
+      if(!Array.isArray(ranges)||!ranges.length)ranges=[{min:1,max:1000,charge:15},{min:1000,max:5000,charge:100},{min:5000,max:10000,charge:100},{min:10000,max:15000,charge:200},{min:15000,max:20000,charge:200},{min:20000,max:25000,charge:300}];
       const root=byId('posSettingsRows');root.innerHTML='';
       ranges.forEach((r,i)=>{const row=document.createElement('div');row.className='pos-range-form';row.style.margin='8px 0';row.innerHTML=`<input type="number" min="1" step="0.01" aria-label="Range ${i+1} minimum" placeholder="Minimum ₦" value="${Number(r.min)||1}"><input type="number" min="1" step="0.01" aria-label="Range ${i+1} maximum" placeholder="Maximum ₦" value="${Number(r.max)||1000}"><input type="number" min="0" step="0.01" aria-label="Range ${i+1} charge" placeholder="Charge ₦" value="${Number(r.charge)||0}"><button class="btn btn-danger" type="button" style="grid-column:1/-1">Remove range</button>`;row.querySelector('button').addEventListener('click',()=>{row.remove()});root.appendChild(row)});
     }
