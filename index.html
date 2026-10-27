@@ -554,6 +554,21 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const $ = id => document.getElementById(id);
   window.bnaAuthState = { user:null, role:null, ready:false };
   const authGate = $('authGate'), authForm = $('authForm'), authMessage = $('authMessage');
+  // Keep the app shell hidden behind auth while Firebase restores the existing session.
+  authGate.hidden = true;
+  let bnaAuthInitialized = false;
+  function restoreCurrentView(){
+    const allowed=['homeView','accountView','storeView','transactionView'];
+    let target=(location.hash||'').replace(/^#/, '');
+    if(!allowed.includes(target)) target='homeView';
+    if(target==='storeView' && window.bnaAuthState?.role!=='admin') target='homeView';
+    allowed.forEach(id=>{const el=$(id);if(el) el.style.display=id===target?'block':'none';});
+    document.querySelectorAll('.nav-inner a[data-view]').forEach(a=>{const active=a.dataset.view===target;if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');a.style.background=active?'#ffffff35':'';});
+    if(target==='homeView') readProducts();
+    if(target==='accountView') refreshAccountSales();
+    if(target==='storeView') window.dispatchEvent(new Event('store-view-shown'));
+    if(target==='transactionView' && !txState.loaded) fetchTransactions();
+  }
   function authStatus(message, isError=false){ authMessage.textContent=message; authMessage.classList.toggle('error',!!isError); }
   function showSignedOut(message){
     authGate.hidden=false; $('authBar').style.display='none'; $('authForm').hidden=false;
@@ -569,8 +584,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   $('signOutButton').addEventListener('click',signOutBna); $('authSignOut').addEventListener('click',signOutBna);
   auth.onAuthStateChanged(async user=>{
     window.bnaAuthState={user,role:null,ready:false};
-    if(!user){ showSignedOut('Sign in with your authorized business account.'); window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user:null,role:null}})); return; }
-    authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false; authStatus('Checking your account permissions…');
+    if(!user){ bnaAuthInitialized=true; showSignedOut('Sign in with your authorized business account.'); window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user:null,role:null}})); return; }
+    authStatus('Restoring your session…');
     try {
       const roleSnap=await db.collection('users').doc(user.uid).get();
       const role=roleSnap.exists ? String(roleSnap.data().role||'').toLowerCase() : '';
@@ -590,10 +605,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         document.querySelectorAll('.nav-inner a[data-view]').forEach(a=>a.removeAttribute('aria-current'));
         const homeLink=document.querySelector('.nav-inner a[data-view="homeView"]'); if(homeLink) homeLink.setAttribute('aria-current','page');
       }
+      bnaAuthInitialized=true;
       window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user,role}}));
       if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
+      restoreCurrentView();
     } catch(error){
-      console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false};
+      console.error('Role check failed:',error); window.bnaAuthState={user,role:null,ready:false}; authGate.hidden=false; $('authForm').hidden=true; $('authSignOut').hidden=false;
       authStatus('Could not verify your role from Firestore. Check the users document and Firestore rules. '+(error.code||''),true);
       $('authForm').hidden=true; $('authSignOut').hidden=false;
     }
@@ -1068,6 +1085,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         else a.removeAttribute('aria-current');
         a.style.background = a === link ? '#ffffff35' : '';
       });
+      if(location.hash !== '#'+view) history.replaceState(null,'','#'+view);
       window.scrollTo({top:0,behavior:'auto'});
       if (view === 'homeView') readProducts();
       if (view === 'accountView') refreshAccountSales();
@@ -1075,6 +1093,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       if (view === 'transactionView') { if(!txState.loaded) fetchTransactions(); }
     });
   });
+  window.addEventListener('hashchange',()=>{if(window.bnaAuthState?.ready) restoreCurrentView();});
   renderAccount('today');
 
   // Cache the app shell so this page can reopen offline on HTTPS/localhost.
