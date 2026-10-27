@@ -807,94 +807,87 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   async function completeSale() {
-    if(selectedCategory==='POS'){
-      if(!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)){setNotice('Please sign in with an authorized account first.','error');return;}
-      const ranges=getPosRanges(),chosen=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
-      if(!chosen.length){setNotice('Select one or more POS transaction ranges first.','error');return;}
-      const now=new Date().toISOString();
-      try{
-        const batch=db.batch();
-        // Save POS charges in the existing sales collection. The current Firestore
-        // rules commonly grant sales writes but may not include a separate
-        // posTransactions collection, which caused the permission-denied error.
-        chosen.forEach(range=>{
-          const id=makeId();
-          const charge=Number(range.charge)||0;
-          const posSale={
-            id,
-            type:'POS',
-            date:now,
-            total:charge,
-            items:[{
-              cartId:id,
-              productId:'POS',
-              name:'POS '+formatPosRange(range),
-              category:'POS',
-              section:'transaction',
-              conversionUnits:1,
-              quantity:1,
-              unitPrice:charge,
-              rangeMin:Number(range.min),
-              rangeMax:Number(range.max)
-            }],
-            createdBy:window.bnaAuthState.user.uid,
-            createdByEmail:window.bnaAuthState.user.email||''
-          };
-          batch.set(db.collection('sales').doc(String(id)),posSale);
-        });
-        await batch.commit();
-        const total=chosen.reduce((sum,range)=>sum+(Number(range.charge)||0),0);
-        setNotice(chosen.length+' POS charge(s) recorded. Total charges: '+money(total)+'.','success');selectedPosRanges.clear();renderProductOptions();renderPosBill();renderAccount(activeAccountPeriod);await refreshAccountSales();
+    if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) {
+      setNotice('Please sign in with an authorized account first.','error'); return;
+    }
+    const ranges=getPosRanges();
+    const chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
+    if(!cart.length && !chosenRanges.length){setNotice('Add Cereal/Drinks products or select a POS charge before completing the sale.','error');return;}
+
+    // Refresh stock before writing, then save each category as its own sales record
+    // within one atomic Firestore batch. This keeps the combined checkout together
+    // while allowing the account dashboard to allocate each category independently.
+    let latest=[];
+    if(cart.length){
+      try {
+        const snapshot=await db.collection('inventory').get();
+        latest=snapshot.docs.map(doc=>({...doc.data(),id:doc.id}));
+      } catch(error){
+        console.error('Could not refresh Firebase inventory before sale:',error);
+        setNotice('Could not reach Firebase inventory. Sale was not completed; check internet and Firestore rules.','error');return;
       }
-      catch(error){console.error('POS transaction save failed:',error);setNotice('POS transactions could not be saved ('+(error.code||'unknown error')+'). '+(error.message||'Check Firestore rules and sales write permissions.'),'error');}
-      return;
+      for(const item of cart){
+        const p=latest.find(product=>String(product.id)===String(item.productId));
+        if(!p){setNotice(`${item.name} is no longer in Store. Sale was not completed.`,'error');return;}
+        const info=stockInfo(p);
+        const requested=cart.filter(x=>String(x.productId)===String(item.productId)).reduce((sum,x)=>sum+x.quantity*(x.conversionUnits||1),0);
+        if(requested>info.available){setNotice(`Not enough ${item.name} in stock. Available: ${info.available}. Sale was not completed.`,'error');return;}
+      }
     }
-    if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) { setNotice('Please sign in with an authorized account first.', 'error'); return; }
-    if (!cart.length) { setNotice('Add at least one product before completing a sale.', 'error'); return; }
-    // Re-read the current store list so we do not rely on a stale page copy.
-    let latest;
-    try {
-      const snapshot = await db.collection('inventory').get();
-      latest = snapshot.docs.map(doc => ({...doc.data(), id:doc.id}));
-    } catch (error) {
-      console.error('Could not refresh Firebase inventory before sale:', error);
-      setNotice('Could not reach Firebase inventory. Sale was not completed; check internet and Firestore rules.', 'error');
-      return;
-    }
-    if (!Array.isArray(latest)) { setNotice('Could not read the Store records. Sale was not completed.', 'error'); return; }
-    for (const item of cart) {
-      const p = latest.find(product => String(product.id) === String(item.productId));
-      if (!p) { setNotice(`${item.name} is no longer in Store. Sale was not completed.`, 'error'); return; }
-      const info = stockInfo(p);
-      const requested = cart.filter(x=>String(x.productId)===String(item.productId)).reduce((s,x)=>s+x.quantity*(x.conversionUnits||1),0);
-      if (requested > info.available) { setNotice(`Not enough ${item.name} in stock. Available: ${info.available}. Sale was not completed.`, 'error'); return; }
-    }
-    const sale = {id:makeId(), date:new Date().toISOString(), items:cart.map(x=>({...x})), total:cartTotal()};
+
+    const now=new Date().toISOString();
+    const grouped={Cereal:[],Drinks:[],POS:[]};
     cart.forEach(item=>{
       const p=latest.find(product=>String(product.id)===String(item.productId));
-      p.soldUnits=Math.max(0,Number(p.soldUnits)||0)+item.quantity*(item.conversionUnits||1);
-      p.updatedAt=new Date().toISOString();
+      const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';
+      grouped[category].push({...item,category});
     });
-    try {
-      const batch = db.batch();
-      cart.forEach(item => {
-        const product = latest.find(p => String(p.id) === String(item.productId));
-        const ref = db.collection('inventory').doc(String(product.id));
-        batch.set(ref, {soldUnits:Math.max(0,Number(product.soldUnits)||0), updatedAt:new Date().toISOString()}, {merge:true});
+    chosenRanges.forEach(range=>{
+      const id=makeId(),charge=Number(range.charge)||0;
+      grouped.POS.push({cartId:id,productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:charge,rangeMin:Number(range.min),rangeMax:Number(range.max)});
+    });
+
+    try{
+      const batch=db.batch();
+      // Save each inventory stock change once, even when multiple items refer to it.
+      const updatedProducts=new Map();
+      cart.forEach(item=>{
+        const p=latest.find(product=>String(product.id)===String(item.productId));
+        if(!updatedProducts.has(String(p.id))){
+          p.soldUnits=Math.max(0,Number(p.soldUnits)||0);
+          updatedProducts.set(String(p.id),p);
+        }
+        p.soldUnits+=item.quantity*(item.conversionUnits||1);
+        p.updatedAt=now;
       });
-      batch.set(db.collection('sales').doc(String(sale.id)), sale);
+      updatedProducts.forEach(p=>batch.set(db.collection('inventory').doc(String(p.id)),{soldUnits:p.soldUnits,updatedAt:now},{merge:true}));
+
+      const savedRecords=[];
+      ['Cereal','Drinks','POS'].forEach(category=>{
+        const items=grouped[category];
+        if(!items.length)return;
+        const id=makeId();
+        const total=items.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);
+        const record={id,date:now,type:category,category,total,items:items.map(item=>({...item})),createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};
+        batch.set(db.collection('sales').doc(String(id)),record);
+        savedRecords.push({category,total});
+      });
       await batch.commit();
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));
-      recentSales.unshift(sale); recentSales=recentSales.slice(0,20);
-      localStorage.setItem(SALES_KEY,JSON.stringify(recentSales));
-    } catch (error) {
-      console.error('Firebase sale save failed:', error);
-      setNotice('Sale was not completed because Firebase could not save it. Check your connection and Firestore rules.', 'error');
-      return;
+      if(cart.length){
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}
+      }
+      const receipt=savedRecords.map(record=>record.category+': '+money(record.total)).join('\n');
+      const combinedTotal=savedRecords.reduce((sum,record)=>sum+record.total,0);
+      cart=[];selectedPosRanges.clear();
+      await readProducts();
+      renderProductOptions();renderCart();
+      await refreshAccountSales();renderHistory();
+      setNotice('Combined sale saved successfully.\n'+receipt+'\nCombined total: '+money(combinedTotal),'success');
+      alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(combinedTotal));
+    }catch(error){
+      console.error('Combined sale save failed:',error);
+      setNotice('Sale was not completed because Firebase could not save all category records ('+(error.code||'unknown error')+'). '+(error.message||'Check your connection and Firestore rules.'),'error');
     }
-    const receipt = sale.items.map(x=>`${x.name} (${x.section||'piece'}) × ${x.quantity} — ${money(x.quantity*x.unitPrice)}`).join('\n');
-    alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(sale.total));
-    cart=[];await readProducts();await refreshAccountSales();renderHistory();setNotice('Sale completed. Stock and sale record saved to Firebase.', 'success');
   }
   function renderHistory() {
     const root=$('salesHistory');
