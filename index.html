@@ -404,6 +404,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <div class="pos-actions"><button class="btn btn-secondary" id="addPosRange" type="button">＋ Add range</button><button class="btn btn-primary" id="savePosRanges" type="button">Save POS charges</button></div>
       <p class="hint" id="posSettingsStatus" role="status"></p>
     </section>
+    <section class="pos-settings" id="wifiSettingsPanel" hidden>
+      <h2>Wi-Fi Ticket Prices</h2>
+      <p class="hint">Set the selling prices for Wi-Fi tickets. These options appear inside the main bill and are saved on this device.</p>
+      <div id="wifiSettingsRows" class="pos-range-form"></div>
+      <div class="pos-actions"><button class="btn btn-primary" id="saveWifiPrices" type="button">Save Wi-Fi prices</button></div>
+      <p class="hint" id="wifiSettingsStatus" role="status"></p>
+    </section>
     <section class="summary-grid" aria-label="Inventory summary">
       <div class="summary"><small>PRODUCT TYPES</small><strong id="productCount">0</strong></div>
       <div class="summary"><small>TOTAL STOCK UNITS</small><strong id="totalUnits">0</strong></div>
@@ -655,6 +662,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     return defaultPosRanges.map(x=>({...x}));
   }
   let selectedPosRanges = new Set();
+  const WIFI_PRICES_KEY='bna_wifi_ticket_prices_v1';
+  const defaultWifiPrices=[300,400,500,4000];
+  function getWifiPrices(){try{const v=JSON.parse(localStorage.getItem(WIFI_PRICES_KEY)||'null');if(Array.isArray(v)&&v.length)return v.map(Number).filter(n=>Number.isFinite(n)&&n>=0)}catch(_){}return [...defaultWifiPrices]}
+  let selectedWifiPrices=new Set();
   function formatPosRange(range){
     const amount=n=>Number(n).toLocaleString('en-NG',{maximumFractionDigits:2});
     return amount(range.min)+' to '+amount(range.max);
@@ -677,9 +688,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     });
     if(!ranges.length)root.innerHTML='<div class="no-products">No POS ranges configured. Ask an administrator to configure POS charges in Store.</div>';
   }
-  function renderPosBill(){
-    // POS charges share the same bill and total as selected Cereal/Drinks products.
-    renderCart();
+  function renderPosBill(){ renderCart(); }
+  function renderWifiOptions(root){
+    root.classList.add('pos-options');root.innerHTML='';
+    getWifiPrices().forEach((price,index)=>{
+      const label=document.createElement('label');label.className='pos-range-card';
+      const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedWifiPrices.has(index);checkbox.setAttribute('aria-label','Select Wi-Fi ticket '+money(price));
+      const name=document.createElement('span');name.className='pos-range-label';name.textContent=money(price);
+      checkbox.addEventListener('change',()=>{if(checkbox.checked)selectedWifiPrices.add(index);else selectedWifiPrices.delete(index);renderWifiOptions(root);renderCart();});
+      label.append(checkbox,name);root.appendChild(label);
+    });
+    if(!root.children.length)root.innerHTML='<div class="no-products">No Wi-Fi ticket prices configured. Ask an administrator to add prices in Store.</div>';
   }
   function renderProductOptions() {
     const root = $('productOptions');
@@ -687,10 +706,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       renderPosOptions(root);
       return;
     }
-    if(selectedCategory==='Wi-Fi'){
-      root.innerHTML='<div class="no-products">Wi-Fi hotspot sales are managed in the Wi-Fi section.</div>';
-      $('cartList').innerHTML='<div class="empty">Select Wi-Fi to manage hotspot sales.</div>';$('grandTotal').textContent=money(0);$('completeSale').textContent='Complete Sale';return;
-    }
+    if(selectedCategory==='Wi-Fi'){renderWifiOptions(root);return;}
     root.classList.remove('pos-options');
     $('completeSale').textContent='Complete Sale';
     const matches = products.filter(p => productCategory(p) === selectedCategory);
@@ -752,11 +768,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     const root = $('cartList');
     const ranges=getPosRanges();
     const selectedRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>({index:i,...ranges[i]}));
+    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({index:i,price:wifiPrices[i]}));
     const productTotal=cartTotal();
     const posTotal=selectedRanges.reduce((sum,r)=>sum+(Number(r.charge)||0),0);
-    $('grandTotal').textContent = money(productTotal+posTotal);
-    if (!cart.length && !selectedRanges.length) {
-      root.innerHTML = '<div class="empty">Your bill is empty. Choose Cereal, Drinks, or POS items above to begin.</div>';
+    const wifiTotal=chosenWifi.reduce((sum,w)=>sum+(Number(w.price)||0),0);
+    $('grandTotal').textContent = money(productTotal+posTotal+wifiTotal);
+    if (!cart.length && !selectedRanges.length && !chosenWifi.length) {
+      root.innerHTML = '<div class="empty">Your bill is empty. Choose Cereal, Drinks, POS, or Wi-Fi tickets above to begin.</div>';
       renderProductOptions();
       return;
     }
@@ -802,7 +820,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const amount=document.createElement('strong');amount.textContent=money(range.charge);
       total.appendChild(amount);row.append(name,spacer,total);root.appendChild(row);
     });
-    $('completeSale').textContent=selectedRanges.length?'Complete Sale / POS':'Complete Sale';
+    chosenWifi.forEach(ticket=>{const row=document.createElement('article');row.className='cart-item';const name=document.createElement('div');name.className='product-name';name.textContent='Wi-Fi '+money(ticket.price);const qty=document.createElement('div');qty.className='quantity-area';qty.textContent='1 ticket';const total=document.createElement('div');total.className='item-total';const amount=document.createElement('strong');amount.textContent=money(ticket.price);total.appendChild(amount);row.append(name,qty,total);root.appendChild(row);});
+    $('completeSale').textContent=(selectedRanges.length||chosenWifi.length)?'Complete Sale / '+[selectedRanges.length?'POS':'',chosenWifi.length?'Wi-Fi':''].filter(Boolean).join(' + '):'Complete Sale';
     renderProductOptions();
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -812,7 +831,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
     const ranges=getPosRanges();
     const chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
-    if(!cart.length && !chosenRanges.length){setNotice('Add Cereal/Drinks products or select a POS charge before completing the sale.','error');return;}
+    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>wifiPrices[i]);
+    if(!cart.length && !chosenRanges.length && !chosenWifi.length){setNotice('Add products or select a POS charge or Wi-Fi ticket before completing the sale.','error');return;}
 
     // Refresh stock before writing, then save each category as its own sales record
     // within one atomic Firestore batch. This keeps the combined checkout together
@@ -836,16 +856,14 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     }
 
     const now=new Date().toISOString();
-    const grouped={Cereal:[],Drinks:[],POS:[]};
+    const grouped={Cereal:[],Drinks:[],POS:[],'Wi-Fi':[]};
     cart.forEach(item=>{
       const p=latest.find(product=>String(product.id)===String(item.productId));
       const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';
       grouped[category].push({...item,category});
     });
-    chosenRanges.forEach(range=>{
-      const id=makeId(),charge=Number(range.charge)||0;
-      grouped.POS.push({cartId:id,productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:charge,rangeMin:Number(range.min),rangeMax:Number(range.max)});
-    });
+    chosenRanges.forEach(range=>{const id=makeId(),charge=Number(range.charge)||0;grouped.POS.push({cartId:id,productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:charge,rangeMin:Number(range.min),rangeMax:Number(range.max)});});
+    chosenWifi.forEach(price=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+money(price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:1,unitPrice:Number(price)}));
 
     try{
       const batch=db.batch();
@@ -863,7 +881,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       updatedProducts.forEach(p=>batch.set(db.collection('inventory').doc(String(p.id)),{soldUnits:p.soldUnits,updatedAt:now},{merge:true}));
 
       const savedRecords=[];
-      ['Cereal','Drinks','POS'].forEach(category=>{
+      ['Cereal','Drinks','POS','Wi-Fi'].forEach(category=>{
         const items=grouped[category];
         if(!items.length)return;
         const id=makeId();
@@ -878,7 +896,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       }
       const receipt=savedRecords.map(record=>record.category+': '+money(record.total)).join('\n');
       const combinedTotal=savedRecords.reduce((sum,record)=>sum+record.total,0);
-      cart=[];selectedPosRanges.clear();
+      cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();
       await readProducts();
       renderProductOptions();renderCart();
       await refreshAccountSales();renderHistory();
@@ -1027,11 +1045,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       });
     }
     function renderPosSettings(){
-      const panel=byId('posSettingsPanel');if(!panel)return;panel.hidden=!isAdmin();if(!isAdmin())return;
+      const panel=byId('posSettingsPanel');if(!panel)return;panel.hidden=!isAdmin();const wifiPanel=byId('wifiSettingsPanel');if(wifiPanel)wifiPanel.hidden=!isAdmin();if(!isAdmin())return;
       let ranges=[];try{ranges=JSON.parse(localStorage.getItem('bna_pos_charge_ranges_v1')||'null')}catch(_){}
       if(!Array.isArray(ranges)||!ranges.length)ranges=[{min:1,max:1000,charge:15},{min:1000,max:5000,charge:100},{min:5000,max:10000,charge:100},{min:10000,max:15000,charge:200},{min:15000,max:20000,charge:200},{min:20000,max:25000,charge:300}];
       const root=byId('posSettingsRows');root.innerHTML='';
       ranges.forEach((r,i)=>{const row=document.createElement('div');row.className='pos-range-form';row.style.margin='8px 0';row.innerHTML=`<input type="number" min="1" step="0.01" aria-label="Range ${i+1} minimum" placeholder="Minimum ₦" value="${Number(r.min)||1}"><input type="number" min="1" step="0.01" aria-label="Range ${i+1} maximum" placeholder="Maximum ₦" value="${Number(r.max)||1000}"><input type="number" min="0" step="0.01" aria-label="Range ${i+1} charge" placeholder="Charge ₦" value="${Number(r.charge)||0}"><button class="btn btn-danger" type="button" style="grid-column:1/-1">Remove range</button>`;row.querySelector('button').addEventListener('click',()=>{row.remove()});root.appendChild(row)});
+      let wifi=[];try{wifi=JSON.parse(localStorage.getItem('bna_wifi_ticket_prices_v1')||'null')}catch(_){}if(!Array.isArray(wifi)||!wifi.length)wifi=[300,400,500,4000];const wr=byId('wifiSettingsRows');if(wr){wr.innerHTML='';wifi.forEach((price,i)=>{const input=document.createElement('input');input.type='number';input.min='0';input.step='1';input.value=Number(price)||0;input.setAttribute('aria-label','Wi-Fi ticket price '+(i+1));input.placeholder='Ticket price ₦';wr.appendChild(input)})}
     }
     function updateStoreAccess(){
       const allowed=isAdmin();renderPosSettings();
@@ -1177,6 +1196,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     window.addEventListener('offline',()=>{byId('syncStatus').textContent='Offline. Changes queue if Firestore persistence is available.'});
     byId('addPosRange').addEventListener('click',()=>{const root=byId('posSettingsRows');const row=document.createElement('div');row.className='pos-range-form';row.style.margin='8px 0';row.innerHTML='<input type="number" min="1" step="0.01" placeholder="Minimum ₦" aria-label="Range minimum"><input type="number" min="1" step="0.01" placeholder="Maximum ₦" aria-label="Range maximum"><input type="number" min="0" step="0.01" placeholder="Charge ₦" aria-label="Range charge"><button class="btn btn-danger" type="button" style="grid-column:1/-1">Remove range</button>';row.querySelector('button').onclick=()=>row.remove();root.appendChild(row)});
     byId('savePosRanges').addEventListener('click',()=>{if(!isAdmin()){byId('posSettingsStatus').textContent='Administrator access required.';return}const ranges=[...byId('posSettingsRows').querySelectorAll('.pos-range-form')].map(row=>{const fields=row.querySelectorAll('input');return {min:Number(fields[0].value),max:Number(fields[1].value),charge:Number(fields[2].value)}});if(!ranges.length||ranges.some(r=>!Number.isFinite(r.min)||!Number.isFinite(r.max)||!Number.isFinite(r.charge)||r.min<1||r.max<r.min||r.charge<0)){byId('posSettingsStatus').textContent='Enter valid minimum, maximum, and charge values for every range.';return}ranges.sort((a,b)=>a.min-b.min);localStorage.setItem('bna_pos_charge_ranges_v1',JSON.stringify(ranges));byId('posSettingsStatus').textContent='POS charge ranges saved on this device.';if(typeof window.bnaReloadProducts==='function')window.bnaReloadProducts()});
+    byId('saveWifiPrices').addEventListener('click',()=>{if(!isAdmin()){byId('wifiSettingsStatus').textContent='Administrator access required.';return}const prices=[...byId('wifiSettingsRows').querySelectorAll('input')].map(x=>Number(x.value));if(!prices.length||prices.some(x=>!Number.isFinite(x)||x<0)){byId('wifiSettingsStatus').textContent='Enter valid Wi-Fi ticket prices.';return}localStorage.setItem('bna_wifi_ticket_prices_v1',JSON.stringify(prices));byId('wifiSettingsStatus').textContent='Wi-Fi ticket prices saved on this device.';});
     addSubQuantity('','');updatePreview();updateStoreAccess();
   
 })();
