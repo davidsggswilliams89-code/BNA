@@ -566,6 +566,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   // Keep the app shell hidden behind auth while Firebase restores the existing session.
   authGate.hidden = true;
   let bnaAuthInitialized = false;
+  let signedOutGateTimer = null;
+  // Explicitly persist Firebase login across page refreshes and browser restarts.
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err=>console.warn('Could not set persistent login:',err));
   function restoreCurrentView(){
     const allowed=['homeView','accountView','storeView','transactionView'];
     let target=(location.hash||'').replace(/^#/, '');
@@ -592,8 +595,20 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   async function signOutBna(){ try { localStorage.removeItem(ROLE_CACHE_KEY); await auth.signOut(); } catch(error){ authStatus(error.message||'Could not sign out.',true); } }
   $('signOutButton').addEventListener('click',signOutBna); $('authSignOut').addEventListener('click',signOutBna);
   auth.onAuthStateChanged(async user=>{
+    if(signedOutGateTimer){clearTimeout(signedOutGateTimer);signedOutGateTimer=null;}
     window.bnaAuthState={user,role:null,ready:false};
-    if(!user){ bnaAuthInitialized=true; showSignedOut('Sign in with your authorized business account.'); window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user:null,role:null}})); return; }
+    if(!user){
+      // Avoid flashing the login gate while Firebase is restoring a saved session.
+      bnaAuthInitialized=true;
+      signedOutGateTimer=setTimeout(()=>{
+        if(!auth.currentUser){
+          showSignedOut('Sign in with your authorized business account.');
+          window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user:null,role:null}}));
+        }
+      },1200);
+      return;
+    }
+    authGate.hidden=true;
     authStatus('Restoring your session…');
     try {
       let role='';
