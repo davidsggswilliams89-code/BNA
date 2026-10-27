@@ -333,6 +333,29 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 .pos-range-card:has(input:checked){background:#effaf3}
 .pos-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 @media(max-width:480px){.pos-range-form{grid-template-columns:1fr 1fr}#productOptions.pos-options{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.pos-range-card{padding:6px 5px;gap:5px}.pos-range-card .pos-range-label{font-size:.76rem}.category-buttons{overflow-x:auto;scrollbar-width:none}.category-buttons::-webkit-scrollbar{display:none}}
+
+/* Inbuilt transaction view */
+#transactionView{display:none;width:min(1100px,calc(100% - 24px));margin:22px auto 40px;color:#172033}
+#transactionView .tx-card{background:#fff;border:1px solid #e3e8ef;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 5px 18px #1428500a}
+#transactionView .tx-heading h1{color:#064a99;margin:0 0 8px;font-size:clamp(1.5rem,4vw,2rem)}
+#transactionView .tx-status{padding:12px 14px;background:#eaf3ff;border-radius:10px;color:#23456f;margin:12px 0;overflow-wrap:anywhere}
+#transactionView .tx-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end}
+#transactionView .tx-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+#transactionView .tx-field label{font-size:.82rem;font-weight:700;color:#344054}
+#transactionView .tx-field input,#transactionView .tx-field select{width:100%;min-height:42px;border:1px solid #cfd5df;border-radius:8px;padding:8px 10px;font:inherit;background:#fff}
+#transactionView .tx-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+#transactionView .tx-btn{border:0;border-radius:8px;padding:11px 15px;min-height:42px;font:inherit;font-weight:700;cursor:pointer;background:#0759b8;color:white}
+#transactionView .tx-btn.soft{background:#eaf1fb;color:#064a99}
+#transactionView .tx-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#transactionView .tx-metric{padding:14px;border:1px solid #e3e8ef;border-radius:12px;background:#fff;min-width:0}
+#transactionView .tx-metric span{display:block;color:#667085;font-size:.8rem;font-weight:700;margin-bottom:7px}
+#transactionView .tx-metric strong{display:block;color:#064a99;font-size:clamp(1.05rem,3vw,1.45rem);overflow-wrap:anywhere}
+#transactionView .tx-table-wrap{width:100%;overflow-x:auto}#transactionView table{border-collapse:collapse;width:100%;min-width:780px}
+#transactionView th,#transactionView td{padding:11px 9px;text-align:left;border-bottom:1px solid #e3e8ef;vertical-align:top;font-size:.88rem}
+#transactionView th{background:#f0f5fc;color:#344054;white-space:nowrap}#transactionView .tx-amount{font-weight:800;color:#087f45;white-space:nowrap}#transactionView .tx-balance{font-weight:800;color:#064a99;white-space:nowrap}#transactionView .tx-empty{padding:18px;text-align:center;color:#667085}
+#transactionView .hidden{display:none!important}
+@media(max-width:650px){#transactionView{width:calc(100% - 14px);margin-top:14px}#transactionView .tx-card{padding:12px;border-radius:12px}#transactionView .tx-summary{gap:8px}#transactionView .tx-metric{padding:10px}#transactionView .tx-fields{grid-template-columns:1fr 1fr}}
+
 </style>
 </head>
 <body>
@@ -350,7 +373,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 </div>
 <div id="authBar" aria-hidden="true"><span id="authIdentity">Signed in</span></div>
 <nav class="nav" aria-label="Main navigation"><div class="nav-inner">
-<a href="#homeView" data-view="homeView" aria-current="page">⌂ Home</a><a href="#accountView" data-view="accountView">👥 Accounts</a><a href="#storeView" data-view="storeView">🏪 Store</a><a href="transactions.html">Transaction</a><button id="signOutButton" type="button">Logout</button>
+<a href="#homeView" data-view="homeView" aria-current="page">⌂ Home</a><a href="#accountView" data-view="accountView">👥 Accounts</a><a href="#storeView" data-view="storeView">🏪 Store</a><a href="#transactionView" data-view="transactionView">Transaction</a><button id="signOutButton" type="button">Logout</button>
 </div></nav>
 <main id="homeView">
   
@@ -490,6 +513,20 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
   </main>
   <footer>&copy; <span id="year"></span> BNA, Busau Business. All rights reserved.</footer>
+<section id="transactionView" aria-label="Transaction records">
+  <header class="tx-heading"><h1>Transaction Records</h1></header>
+  <div id="txStatus" class="tx-status" role="status">Open Transaction to fetch records.</div>
+  <section class="tx-card">
+    <div class="tx-fields">
+      <div class="tx-field"><label for="txFilterId">Filter by transaction ID</label><input id="txFilterId" type="search" placeholder="Enter transaction ID"></div>
+      <div class="tx-field"><label for="txRange">Date range</label><select id="txRange"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="7" selected>1 week</option><option value="30">1 month</option><option value="365">1 year</option><option value="custom">Calendar dates</option><option value="all">All transactions</option></select></div>
+      <div class="tx-field" id="txFromWrap"><label for="txFromDate">From date</label><input id="txFromDate" type="date"></div>
+      <div class="tx-field" id="txToWrap"><label for="txToDate">To date</label><input id="txToDate" type="date"></div>
+    </div>
+    <div class="tx-actions"><button id="txApplyFilter" class="tx-btn" type="button">Filter</button><button id="txRefresh" class="tx-btn soft" type="button">Fetch / Refresh</button></div>
+  </section>
+  <section class="tx-summary"><div class="tx-metric"><span>TOTAL TRANSACTIONS</span><strong id="txCount">0</strong></div><div class="tx-metric"><span>AMOUNT IN TRANSACTIONS</span><strong id="txFilteredTotal">₦0.00</strong></div><div class="tx-metric"><span>RUNNING TOTAL</span><strong id="txRunningTotal">₦0.00</strong></div><div class="tx-metric"><span>TOTAL AMOUNT OF PRODUCTS</span><strong id="txProductTotal">₦0.00</strong></div></section>
+  <section class="tx-card"><h2 style="margin:0 0 12px;color:#064a99;font-size:1.1rem">All matching transactions</h2><div class="tx-table-wrap"><table><thead><tr><th>Date &amp; time</th><th>Transaction ID</th><th>Transaction details</th><th>Amount</th><th>Balance before</th><th>Balance after</th></tr></thead><tbody id="txRows"><tr><td colspan="6" class="tx-empty">Select Fetch / Refresh to load records.</td></tr></tbody></table></div></section>
 </section>
 
 <dialog id="editDialog">
@@ -1007,12 +1044,22 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       renderAccount(btn.dataset.accountPeriod);
     });
   });
+  // Inbuilt transaction records: shares the existing page header, auth and Firebase connection.
+  const txState={sales:[],loaded:false};
+  const txMoney=n=>new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',maximumFractionDigits:2}).format(Number(n)||0);
+  const txPad=n=>String(n).padStart(2,'0');
+  const txDateVal=d=>`${d.getFullYear()}-${txPad(d.getMonth()+1)}-${txPad(d.getDate())}`;
+  function txStatus(message,error=false){const el=$('txStatus');if(el){el.textContent=message;el.style.background=error?'#fff0f0':'#eaf3ff';el.style.color=error?'#9b1c1c':'#23456f'}}
+  function txDateBounds(){const mode=$('txRange').value,now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());if(mode==='custom'){const a=$('txFromDate').value,b=$('txToDate').value;return{from:a?new Date(a+'T00:00:00'):null,to:b?new Date(b+'T23:59:59.999'):null}}if(mode==='all')return{from:null,to:null};const from=new Date(today);from.setDate(from.getDate()-Math.max(1,Number(mode)||7)+1);return{from,to:new Date(today.getTime()+86400000-1)}}
+  function renderTransactions(){const bounds=txDateBounds(),q=$('txFilterId').value.trim().toLowerCase(),chron=[...txState.sales].sort((a,b)=>a.date-b.date);let balance=0;const ledger=chron.map(s=>{const before=balance;balance+=s.amount;return{...s,before,after:balance,productAmount:s.items.reduce((sum,i)=>sum+Math.max(0,Number(i.quantity)||0)*Math.max(0,Number(i.unitPrice)||0),0)}});const matches=ledger.filter(s=>(!bounds.from||s.date>=bounds.from)&&(!bounds.to||s.date<=bounds.to)&&(!q||s.id.toLowerCase().includes(q))).sort((a,b)=>b.date-a.date);$('txCount').textContent=matches.length.toLocaleString();$('txFilteredTotal').textContent=txMoney(matches.reduce((a,s)=>a+s.amount,0));$('txRunningTotal').textContent=matches.length?txMoney(Math.max(...matches.map(s=>s.after))):txMoney(0);$('txProductTotal').textContent=txMoney(matches.reduce((a,s)=>a+s.productAmount,0));const tbody=$('txRows');tbody.innerHTML='';if(!matches.length){tbody.innerHTML='<tr><td colspan="6" class="tx-empty">No transactions found for this date range.</td></tr>';return}matches.forEach(s=>{const tr=document.createElement('tr'),details=s.items.map(i=>`${i.name||'Item'} × ${Number(i.quantity)||0}${i.section?' ('+i.section+')':''}`).join('; ')||'Completed sale';[s.date.toLocaleString(),s.id,details,txMoney(s.amount),txMoney(s.before),txMoney(s.after)].forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i===2)td.style.minWidth='220px';if(i===3)td.className='tx-amount';if(i>=4)td.className='tx-balance';tr.appendChild(td)});tbody.appendChild(tr)})}
+  async function fetchTransactions(){if(!window.bnaAuthState?.user||!['admin','cashier'].includes(window.bnaAuthState.role)){txStatus('Sign in with an authorized admin or cashier account to fetch transactions.',true);return}txStatus('Fetching transaction records from Firebase…');try{const snap=await db.collection('sales').get();txState.sales=snap.docs.map(doc=>{const d=doc.data()||{},date=new Date(d.date||d.createdAt||0),items=Array.isArray(d.items)?d.items:[],amount=Number.isFinite(Number(d.total))?Math.max(0,Number(d.total)):items.reduce((sum,i)=>sum+Math.max(0,Number(i.quantity)||0)*Math.max(0,Number(i.unitPrice)||0),0);return{id:doc.id,date,items,amount}}).filter(s=>Number.isFinite(s.date.getTime())&&s.date.getTime()>0);txState.loaded=true;renderTransactions();txStatus(`Fetched ${txState.sales.length} completed transaction(s).`)}catch(e){console.error(e);txStatus('Could not fetch transactions from Firebase. Check your internet connection and Firestore permissions. '+(e.code||''),true)}}
+  $('txRange').addEventListener('change',()=>{const custom=$('txRange').value==='custom';$('txFromWrap').classList.toggle('hidden',!custom);$('txToWrap').classList.toggle('hidden',!custom);if(txState.loaded&&!custom)renderTransactions()});$('txApplyFilter').addEventListener('click',renderTransactions);$('txFilterId').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();renderTransactions()}});$('txRefresh').addEventListener('click',fetchTransactions);$('txFromDate').value=txDateVal(new Date(Date.now()-6*86400000));$('txToDate').value=txDateVal(new Date());$('txFromWrap').classList.add('hidden');$('txToWrap').classList.add('hidden');
   document.querySelectorAll('.nav-inner a[data-view]').forEach(link => {
     link.addEventListener('click', event => {
       event.preventDefault();
       const view = link.dataset.view;
       if (view === 'storeView' && (!window.bnaAuthState || window.bnaAuthState.role !== 'admin')) { event.preventDefault(); return; }
-      ['homeView','accountView','storeView'].forEach(viewId => {
+      ['homeView','accountView','storeView','transactionView'].forEach(viewId => {
         const section = $(viewId);
         if (section) section.style.display = viewId === view ? 'block' : 'none';
       });
@@ -1025,6 +1072,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       if (view === 'homeView') readProducts();
       if (view === 'accountView') refreshAccountSales();
       if (view === 'storeView') { window.dispatchEvent(new Event('store-view-shown')); }
+      if (view === 'transactionView') { if(!txState.loaded) fetchTransactions(); }
     });
   });
   renderAccount('today');
