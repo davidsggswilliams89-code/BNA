@@ -557,7 +557,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   try { db.enablePersistence({synchronizeTabs:false}).catch(err => console.warn('Firestore persistence could not be enabled:', err.code || err)); } catch (err) { console.warn('Firestore persistence unavailable:', err); }
   const ROLE_CACHE_KEY='bna_verified_role_v1';
   const SYNC_STATUS_ID='bnaSyncStatus';
-  function updateSyncStatus(){const el=document.getElementById(SYNC_STATUS_ID);if(!el)return;const online=navigator.onLine;el.textContent=online?'Online · Firebase sync available':'Offline · Changes will sync when connected';el.style.background=online?'#e8f7ed':'#fff2d8';el.style.color=online?'#17663a':'#875600';}
+  function updateSyncStatus(){const el=document.getElementById(SYNC_STATUS_ID);if(!el)return;const online=navigator.onLine;const pending=(()=>{try{return JSON.parse(localStorage.getItem('bna_offline_sales_queue_v1')||'[]').length}catch(_){return 0}})();el.textContent=(online?'Online · Firebase sync available':'Offline · Changes will sync when connected')+(pending?' · '+pending+' pending sale(s)':'');el.style.background=online?'#e8f7ed':'#fff2d8';el.style.color=online?'#17663a':'#875600';}
   window.addEventListener('online',()=>{updateSyncStatus();});window.addEventListener('offline',updateSyncStatus);
   document.addEventListener('DOMContentLoaded',updateSyncStatus);
   const $ = id => document.getElementById(id);
@@ -618,6 +618,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       }
       bnaAuthInitialized=true;
       window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user,role}}));
+      setTimeout(syncOfflineSales,700);
       if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
       restoreCurrentView();
     } catch(error){
@@ -916,90 +917,90 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     renderProductOptions();
   }
   function escapeAttr(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  async function completeSale() {
-    if (!window.bnaAuthState || !window.bnaAuthState.ready || !['admin','cashier'].includes(window.bnaAuthState.role)) {
-      setNotice('Please sign in with an authorized account first.','error'); return;
+  const OFFLINE_QUEUE_KEY='bna_offline_sales_queue_v1';
+  function getOfflineQueue(){return loadJson(OFFLINE_QUEUE_KEY,[]).filter(x=>x&&x.saleId&&Array.isArray(x.records));}
+  function saveOfflineQueue(queue){localStorage.setItem(OFFLINE_QUEUE_KEY,JSON.stringify(queue));}
+  let syncRunning=false;
+  async function syncOfflineSales(){
+    if(syncRunning||!navigator.onLine||!window.bnaAuthState?.ready)return;
+    const queue=getOfflineQueue(); if(!queue.length)return;
+    syncRunning=true; updateSyncStatus();
+    for(const entry of queue){
+      try{
+        const batch=db.batch();
+        (entry.inventoryUpdates||[]).forEach(p=>batch.set(db.collection('inventory').doc(String(p.id)),{soldUnits:Number(p.soldUnits)||0,updatedAt:p.updatedAt||new Date().toISOString()},{merge:true}));
+        entry.records.forEach(record=>batch.set(db.collection('sales').doc(String(record.id)),record));
+        await batch.commit();
+        const latestQueue=getOfflineQueue().filter(x=>x.saleId!==entry.saleId);saveOfflineQueue(latestQueue);
+      }catch(err){console.warn('Offline sale sync is still pending:',err);break;}
     }
-    const ranges=getPosRanges();
-    const chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
-    const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({price:wifiPrices[i],quantity:selectedWifiQuantities.get(i)||1}));
-    if(!cart.length && !chosenRanges.length && !chosenWifi.length){setNotice('Add products or select a POS charge or Wi-Fi ticket before completing the sale.','error');return;}
-
-    // Refresh stock before writing, then save each category as its own sales record
-    // within one atomic Firestore batch. This keeps the combined checkout together
-    // while allowing the account dashboard to allocate each category independently.
-    let latest=[];
-    if(cart.length){
-      try {
-        const snapshot=await db.collection('inventory').get();
-        latest=snapshot.docs.map(doc=>({...doc.data(),id:doc.id}));
-      } catch(error){
-        console.error('Could not refresh Firebase inventory before sale:',error);
-        setNotice('Could not reach Firebase inventory. Sale was not completed; check internet and Firestore rules.','error');return;
+    syncRunning=false;updateSyncStatus();
+    if(!getOfflineQueue().length&&navigator.onLine){setNotice('All offline sales synchronized successfully.','success');refreshAccountSales();if(txState)fetchTransactions().catch(()=>{});}
+  }
+  window.addEventListener('online',()=>setTimeout(syncOfflineSales,500));
+  async function completeSale() {
+    const authState=window.bnaAuthState;
+    if (!authState || !authState.ready || !authState.user || !['admin','cashier'].includes(authState.role)) {
+      setNotice('Your cashier session is not ready. Sign in online once, then reopen the page.','error'); return;
+    }
+    const button=$('completeSale'); if(button.dataset.saving==='1')return;
+    button.dataset.saving='1';button.disabled=true;button.textContent='Saving sale…';
+    try{
+      const ranges=getPosRanges();
+      const chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]);
+      const wifiPrices=getWifiPrices();const chosenWifi=[...selectedWifiPrices].filter(i=>wifiPrices[i]!==undefined).map(i=>({price:wifiPrices[i],quantity:selectedWifiQuantities.get(i)||1}));
+      if(!cart.length&&!chosenRanges.length&&!chosenWifi.length){setNotice('Add products or select a POS charge or Wi-Fi ticket before completing the sale.','error');return;}
+      let latest=[];
+      try{
+        if(navigator.onLine){
+          const snapshot=await db.collection('inventory').get();
+          latest=snapshot.docs.map(doc=>({...doc.data(),id:doc.id}));
+          try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}
+        }else latest=loadJson(STORAGE_KEY,[]);
+      }catch(error){
+        latest=loadJson(STORAGE_KEY,[]);
+        if(!latest.length&&cart.length)throw new Error('No cached inventory is available offline. Open Store while online first, then try again.');
       }
       for(const item of cart){
         const p=latest.find(product=>String(product.id)===String(item.productId));
-        if(!p){setNotice(`${item.name} is no longer in Store. Sale was not completed.`,'error');return;}
+        if(!p)throw new Error(`${item.name} is not in the saved inventory. Reconnect and refresh Store before selling this item.`);
         const info=stockInfo(p);
         const requested=cart.filter(x=>String(x.productId)===String(item.productId)).reduce((sum,x)=>sum+x.quantity*(x.conversionUnits||1),0);
-        if(requested>info.available){setNotice(`Not enough ${item.name} in stock. Available: ${info.available}. Sale was not completed.`,'error');return;}
+        if(requested>info.available)throw new Error(`Not enough ${item.name} in cached stock. Available: ${info.available}. Sale was not saved.`);
       }
-    }
-
-    const now=new Date().toISOString();
-    const grouped={Cereal:[],Drinks:[],POS:[],'Wi-Fi':[]};
-    cart.forEach(item=>{
-      const p=latest.find(product=>String(product.id)===String(item.productId));
-      const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';
-      grouped[category].push({...item,category});
-    });
-    chosenRanges.forEach(range=>{const id=makeId(),charge=Number(range.charge)||0;grouped.POS.push({cartId:id,productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:charge,rangeMin:Number(range.min),rangeMax:Number(range.max)});});
-    chosenWifi.forEach(ticket=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(ticket.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:ticket.quantity,unitPrice:Number(ticket.price)}));
-
-    try{
-      const batch=db.batch();
-      // Save each inventory stock change once, even when multiple items refer to it.
+      const now=new Date().toISOString(),saleId=makeId();
+      const grouped={Cereal:[],Drinks:[],POS:[],'Wi-Fi':[]};
+      cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';grouped[category].push({...item,category});});
+      chosenRanges.forEach(range=>{grouped.POS.push({cartId:makeId(),productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:Number(range.charge)||0,rangeMin:Number(range.min),rangeMax:Number(range.max)});});
+      chosenWifi.forEach(ticket=>{grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(ticket.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:ticket.quantity,unitPrice:Number(ticket.price)});});
       const updatedProducts=new Map();
-      cart.forEach(item=>{
-        const p=latest.find(product=>String(product.id)===String(item.productId));
-        if(!updatedProducts.has(String(p.id))){
-          p.soldUnits=Math.max(0,Number(p.soldUnits)||0);
-          updatedProducts.set(String(p.id),p);
-        }
-        p.soldUnits+=item.quantity*(item.conversionUnits||1);
-        p.updatedAt=now;
-      });
-      updatedProducts.forEach(p=>batch.set(db.collection('inventory').doc(String(p.id)),{soldUnits:p.soldUnits,updatedAt:now},{merge:true}));
-
-      const savedRecords=[];
-      ['Cereal','Drinks','POS','Wi-Fi'].forEach(category=>{
-        const items=grouped[category];
-        if(!items.length)return;
-        const id=makeId();
-        const total=items.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);
-        const record={id,date:now,type:category,category,total,items:items.map(item=>({...item})),createdBy:window.bnaAuthState.user.uid,createdByEmail:window.bnaAuthState.user.email||''};
-        batch.set(db.collection('sales').doc(String(id)),record);
-        savedRecords.push({category,total});
-      });
-      await batch.commit();
-      updateWifiStockAfterSale(chosenWifi);
-      updatePosRevenueAfterSale(grouped.POS);
-      if(cart.length){
-        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}
+      cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));if(!updatedProducts.has(String(p.id)))updatedProducts.set(String(p.id),p);p.soldUnits=Math.max(0,Number(p.soldUnits)||0)+item.quantity*(item.conversionUnits||1);p.updatedAt=now;});
+      const inventoryUpdates=[...updatedProducts.values()].map(p=>({id:String(p.id),soldUnits:p.soldUnits,updatedAt:now}));
+      const records=[];
+      ['Cereal','Drinks','POS','Wi-Fi'].forEach(category=>{const items=grouped[category];if(!items.length)return;const id=makeId();const total=items.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);records.push({id,date:now,type:category,category,total,items:items.map(item=>({...item})),createdBy:authState.user.uid,createdByEmail:authState.user.email||'',offlineSaleId:saleId});});
+      const entry={saleId,createdAt:now,records,inventoryUpdates,createdBy:authState.user.uid};
+      if(!navigator.onLine){
+        const queue=getOfflineQueue();queue.push(entry);saveOfflineQueue(queue);updateSyncStatus();updateSyncStatus();
+        if(cart.length){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}}
+        updateWifiStockAfterSale(chosenWifi);updatePosRevenueAfterSale(grouped.POS);
+        const receipt=records.map(r=>r.category+': '+money(r.total)).join('\n'),total=records.reduce((a,r)=>a+r.total,0);
+        cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();selectedWifiQuantities.clear();
+        renderProductOptions();renderCart();setNotice('SALE SAVED ON THIS PHONE. Pending sync: '+queue.length+'.\n'+receipt+'\nCombined total: '+money(total),'success');
+        alert('SALE SAVED ON THIS PHONE\n\n'+receipt+'\n\nTOTAL: '+money(total)+'\n\nPending sync: '+queue.length);
+      }else{
+        const batch=db.batch();inventoryUpdates.forEach(p=>batch.set(db.collection('inventory').doc(p.id),{soldUnits:p.soldUnits,updatedAt:p.updatedAt},{merge:true}));records.forEach(record=>batch.set(db.collection('sales').doc(record.id),record));await batch.commit();
+        updateWifiStockAfterSale(chosenWifi);updatePosRevenueAfterSale(grouped.POS);
+        if(cart.length){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(latest));}catch(_){}}
+        const receipt=records.map(r=>r.category+': '+money(r.total)).join('\n'),total=records.reduce((a,r)=>a+r.total,0);
+        cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();selectedWifiQuantities.clear();
+        await readProducts();renderProductOptions();renderCart();await refreshAccountSales();renderHistory();
+        setNotice('Sale saved successfully to Firebase.\n'+receipt+'\nCombined total: '+money(total),'success');
+        alert('SALE SAVED SUCCESSFULLY\n\n'+receipt+'\n\nTOTAL: '+money(total));
       }
-      const receipt=savedRecords.map(record=>record.category+': '+money(record.total)).join('\n');
-      const combinedTotal=savedRecords.reduce((sum,record)=>sum+record.total,0);
-      cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();selectedWifiQuantities.clear();
-      await readProducts();
-      renderProductOptions();renderCart();
-      await refreshAccountSales();renderHistory();
-      setNotice('Combined sale saved successfully.\n'+receipt+'\nCombined total: '+money(combinedTotal),'success');
-      alert('SALE COMPLETED\n\n'+receipt+'\n\nTOTAL: '+money(combinedTotal));
-    }catch(error){
-      console.error('Combined sale save failed:',error);
-      setNotice('Sale was not completed because Firebase could not save all category records ('+(error.code||'unknown error')+'). '+(error.message||'Check your connection and Firestore rules.'),'error');
-    }
+    }catch(error){console.error('Sale save failed:',error);setNotice('Sale was not saved: '+(error.message||error.code||'Unknown error'), 'error');}
+    finally{button.dataset.saving='0';button.disabled=false;button.textContent='Complete Sale';renderCart();}
   }
+
   function renderHistory() {
     const root=$('salesHistory');
     // This simplified CRM layout does not include a sales-history container.
