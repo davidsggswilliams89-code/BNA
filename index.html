@@ -401,6 +401,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" required>
       <button id="authSubmit" type="submit">Sign in</button>
     </form>
+    <button id="showManagerRegister" type="button" style="background:#0d7a4b">Create Manager Account</button>
+    <form id="managerRegisterForm" hidden>
+      <h2 style="font-size:1.1rem;margin:18px 0 4px;color:#064a99">Create Manager Account</h2>
+      <p style="margin:4px 0 10px;font-size:.9rem">Register the business manager with a name, email address, and password.</p>
+      <label for="managerRegisterName">Manager name</label><input id="managerRegisterName" type="text" autocomplete="name" required placeholder="Enter full name">
+      <label for="managerRegisterEmail">Email address</label><input id="managerRegisterEmail" type="email" autocomplete="email" required placeholder="name@example.com">
+      <label for="managerRegisterPassword">Password</label><input id="managerRegisterPassword" type="password" autocomplete="new-password" minlength="6" required placeholder="At least 6 characters">
+      <label for="managerRegisterConfirm">Confirm password</label><input id="managerRegisterConfirm" type="password" autocomplete="new-password" minlength="6" required placeholder="Re-enter password">
+      <button id="managerRegisterSubmit" type="submit">Create Account</button>
+      <button id="cancelManagerRegister" type="button" style="background:#667085">Back to Login</button>
+    </form>
     <div id="authMessage" role="status" aria-live="polite"></div>
     <button id="authSignOut" type="button" hidden style="background:#eef2f7;color:#263449">Sign out</button>
   </div>
@@ -681,9 +692,45 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function authStatus(message, isError=false){ authMessage.textContent=message; authMessage.classList.toggle('error',!!isError); }
   function showSignedOut(message){
     authGate.hidden=false; $('authBar').style.display='none'; $('authForm').hidden=false;
+    $('managerRegisterForm').hidden=true; $('showManagerRegister').hidden=false;
     $('authSignOut').hidden=true; $('authSubmit').disabled=false;
     if(message) authStatus(message,true);
   }
+  $('showManagerRegister').addEventListener('click',()=>{
+    authForm.hidden=true; $('showManagerRegister').hidden=true; $('managerRegisterForm').hidden=false;
+    authStatus('Create your manager login. Use an email address you can access.');
+  });
+  $('cancelManagerRegister').addEventListener('click',()=>{
+    $('managerRegisterForm').reset(); $('managerRegisterForm').hidden=true; authForm.hidden=false; $('showManagerRegister').hidden=false;
+    authStatus('Sign in with your business account.');
+  });
+  $('managerRegisterForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    const name=$('managerRegisterName').value.trim(),email=$('managerRegisterEmail').value.trim().toLowerCase();
+    const password=$('managerRegisterPassword').value,confirm=$('managerRegisterConfirm').value;
+    if(password!==confirm){authStatus('The passwords do not match.',true);return;}
+    if(password.length<6){authStatus('Password must contain at least 6 characters.',true);return;}
+    const btn=$('managerRegisterSubmit');btn.disabled=true;authStatus('Creating manager account…');
+    let createdUser=null;
+    try{
+      // Use a secondary Firebase app so creating an account does not interrupt an existing manager session.
+      if(!window.__bnaManagerRegistrationApp) window.__bnaManagerRegistrationApp=firebase.initializeApp(firebaseConfig,'BNAManagerRegistration');
+      const regApp=window.__bnaManagerRegistrationApp,regAuth=regApp.auth(),regDb=regApp.firestore();
+      const cred=await regAuth.createUserWithEmailAndPassword(email,password);createdUser=cred.user;
+      const now=new Date().toISOString();
+      await regDb.collection('users').doc(createdUser.uid).set({role:'admin',active:true,name,email,managerUid:createdUser.uid,businessId:createdUser.uid,createdAt:now,updatedAt:now});
+      await regAuth.signOut();
+      $('managerRegisterForm').reset();$('managerRegisterForm').hidden=true;authForm.hidden=false;$('showManagerRegister').hidden=false;
+      $('authEmail').value=email;$('authPassword').value=password;
+      authStatus('Manager account created. Signing you in…');
+      await auth.signInWithEmailAndPassword(email,password);
+    }catch(error){
+      console.error('Manager registration failed:',error);
+      const messages={'auth/email-already-in-use':'An account already exists with this email. Please sign in instead.','auth/invalid-email':'Please enter a valid email address.','auth/weak-password':'Choose a stronger password of at least 6 characters.','permission-denied':'Firebase Firestore rules blocked the manager profile from being saved. The rules must permit secure manager registration.'};
+      authStatus(messages[error.code]||('Could not create manager account: '+(error.message||error.code||'Unknown error')),true);
+      if(createdUser){try{await createdUser.delete()}catch(_){} }
+    }finally{btn.disabled=false;}
+  });
   authForm.addEventListener('submit', async event=>{
     event.preventDefault(); $('authSubmit').disabled=true; authStatus('Signing in…');
     try { const loginValue=$('authEmail').value.trim(); const loginEmail=loginValue.includes('@')?loginValue:(loginValue.toLowerCase().replace(/[^a-z0-9._-]/g,'')+'@bnag-98914.firebaseapp.com'); await auth.signInWithEmailAndPassword(loginEmail,$('authPassword').value); }
