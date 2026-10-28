@@ -1552,7 +1552,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
         }
         resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved to Firebase.':'Product saved locally; check your connection.';
         if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
-      }catch(e){console.error(e);alert('Product could not be saved. Open this page online once, and check Firestore rules and Firebase configuration.')}
+      }catch(e){console.error('Product save failed:',{code:e&&e.code,message:e&&e.message,error:e,tenantId:tenantId(),role:window.bnaAuthState&&window.bnaAuthState.role,uid:window.bnaAuthState&&window.bnaAuthState.user&&window.bnaAuthState.user.uid});const code=e&&e.code?String(e.code):'unknown error';const detail=e&&e.message?String(e.message):'No additional details were returned by Firebase.';alert('Product could not be saved.\n\nFirebase error: '+code+'\nDetails: '+detail+'\nStore ID: '+tenantId()+'\n\nIf this says permission-denied, check that the deployed Firestore rules match this manager profile and that the manager profile has businessId and managerUid equal to the manager Firebase UID.')}
       finally{byId('saveButton').disabled=false}
     });
     // Inventory listener is started by updateStoreAccess after admin authorization.
