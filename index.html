@@ -1419,20 +1419,21 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     function updateStoreAccess(){
       const allowed=isAdmin();renderManagerCategories();renderPosSettings();renderStockPanels();
       byId('showProductForm').hidden=!allowed;
-      document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{if(el.id!=='cancelEdit')el.disabled=!allowed});
-      if(!allowed){byId('productFormPanel').hidden=true;byId('syncStatus').textContent='Store management is restricted to administrators.';}
-      else startInventoryListener();
+      // Keep form controls responsive. Authorization is enforced in the submit/edit/delete
+      // handlers and by Firestore rules; disabling every control during a delayed auth-state
+      // update made Add section / Save Product appear unclickable on mobile.
+      document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{
+        if(el.id==='saveButton') return; // only the save handler disables this while saving
+        if(el.id==='cancelEdit') return;
+        el.disabled=false;
+      });
+      if(!allowed){
+        byId('productFormPanel').hidden=true;
+        byId('syncStatus').textContent='Store management is restricted to administrators.';
+      } else startInventoryListener();
       renderProducts();
     }
     window.addEventListener('bna-auth-ready',updateStoreAccess);
-    // The authentication script may finish restoring the saved session before this
-    // store script attaches its event listener. Re-check until the verified role is ready.
-    let storeAccessPolls=0;
-    const storeAccessPoll=setInterval(()=>{
-      storeAccessPolls++;
-      if(window.bnaAuthState?.ready){updateStoreAccess();clearInterval(storeAccessPoll);}
-      else if(storeAccessPolls>=120)clearInterval(storeAccessPoll);
-    },250);
 
     document.getElementById('year').textContent = new Date().getFullYear();
     function money(v){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',minimumFractionDigits:2}).format(Number(v)||0)}
