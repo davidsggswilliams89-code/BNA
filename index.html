@@ -1425,6 +1425,14 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       renderProducts();
     }
     window.addEventListener('bna-auth-ready',updateStoreAccess);
+    // The authentication script may finish restoring the saved session before this
+    // store script attaches its event listener. Re-check until the verified role is ready.
+    let storeAccessPolls=0;
+    const storeAccessPoll=setInterval(()=>{
+      storeAccessPolls++;
+      if(window.bnaAuthState?.ready){updateStoreAccess();clearInterval(storeAccessPoll);}
+      else if(storeAccessPolls>=120)clearInterval(storeAccessPoll);
+    },250);
 
     document.getElementById('year').textContent = new Date().getFullYear();
     function money(v){return new Intl.NumberFormat('en-NG',{style:'currency',currency:'NGN',minimumFractionDigits:2}).format(Number(v)||0)}
