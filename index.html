@@ -429,7 +429,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
 <section id="agentView" aria-label="Agent management">
   <header style="background:none;box-shadow:none;padding:0;color:inherit">
-    <div class="agent-heading"><h1>Agent Management</h1><p>Create an agent, choose their job role, and assign only the business sections and sales categories they can use.</p></div>
+    <div class="agent-heading"><h1>Agent Management</h1></div>
   </header>
   <div class="agent-card">
     <h2 id="agentFormHeading">Create Agent</h2>
@@ -461,8 +461,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <div id="bnaAgentStatus" class="agent-status" role="status" aria-live="polite">Agent accounts and permissions are saved to Firebase.</div>
     </form>
   </div>
-  <div class="agent-card"><h2>Created Agents</h2><p>Use Edit to update an agent's assigned access, or Enable / Disable to control their active status.</p><div class="agent-table-wrap"><table><thead><tr><th>Name / Username</th><th>Role</th><th>Page access</th><th>Categories</th><th>Status</th><th>Actions</th></tr></thead><tbody id="bnaAgentRows"><tr><td colspan="6">No agents created yet.</td></tr></tbody></table></div></div>
-  <p style="font-size:.85rem;color:#667085;line-height:1.5">Agent accounts use Firebase Authentication. Page and category permissions are stored in Firestore and enforced by your Firestore security rules.</p>
+  <div class="agent-card"><h2>Created Agents</h2><div class="agent-table-wrap"><table><thead><tr><th>Name / Username</th><th>Role</th><th>Page access</th><th>Categories</th><th>Status</th><th>Actions</th></tr></thead><tbody id="bnaAgentRows"><tr><td colspan="6">No agents created yet.</td></tr></tbody></table></div></div>
 </section>
 
 <section id="accountView" class="account-view" aria-label="Business account">
