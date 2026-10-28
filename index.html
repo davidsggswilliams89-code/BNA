@@ -718,7 +718,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const regApp=window.__bnaManagerRegistrationApp,regAuth=regApp.auth(),regDb=regApp.firestore();
       const cred=await regAuth.createUserWithEmailAndPassword(email,password);createdUser=cred.user;
       const now=new Date().toISOString();
-      await regDb.collection('users').doc(createdUser.uid).set({role:'admin',active:true,name,email,managerUid:createdUser.uid,businessId:createdUser.uid,createdAt:now,updatedAt:now});
+      // One-time secure bootstrap: create the first manager profile and the
+      // registration lock in one atomic batch. Firestore rules reject later
+      // public manager registrations once system/managerBootstrap exists.
+      const batch=regDb.batch();
+      batch.set(regDb.collection('users').doc(createdUser.uid),{role:'admin',active:true,name,email,managerUid:createdUser.uid,businessId:createdUser.uid,createdAt:now,updatedAt:now});
+      batch.set(regDb.collection('system').doc('managerBootstrap'),{uid:createdUser.uid,createdAt:now});
+      await batch.commit();
       await regAuth.signOut();
       $('managerRegisterForm').reset();$('managerRegisterForm').hidden=true;authForm.hidden=false;$('showManagerRegister').hidden=false;
       $('authEmail').value=email;$('authPassword').value=password;
