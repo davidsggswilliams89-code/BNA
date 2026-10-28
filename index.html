@@ -426,7 +426,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   <section class="bill">
     
     
-    <div id="categoryButtons" class="category-buttons" aria-label="Product categories"></div>
+    <div id="categoryButtons" class="category-buttons" aria-label="Your store categories"></div>
+    <div class="category-buttons" id="specialServiceButtons" aria-label="Special services"><button class="category-button extra-nav-button" type="button" data-special-service="POS">POS Transactions</button><button class="category-button extra-nav-button" type="button" data-special-service="Wi-Fi">Wi-Fi Tickets</button></div>
     <div id="productOptions" class="product-options" aria-label="Products in selected category"></div>
     <div id="cartList" class="cart-list"><div class="empty">Your bill is empty. Choose a product above to begin.</div></div>
     <div class="total-row"><strong>TOTAL TO PAY</strong><div class="total-amount" id="grandTotal">₦0.00</div></div>
@@ -462,12 +463,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         <label class="agent-check"><input type="checkbox" class="bnaAgentPage" value="store"><span><strong>Store & Products (view only)</strong><br>View products; no stock or price editing</span></label>
       </div>
       <h3>Assign sales categories</h3>
-      <div class="agent-checks">
-        <label class="agent-check"><input type="checkbox" class="bnaAgentCategory" value="Drinks" checked><span><strong>Drinks</strong><br>Process Drinks sales</span></label>
-        <label class="agent-check"><input type="checkbox" class="bnaAgentCategory" value="Cereal" checked><span><strong>Cereal</strong><br>Process Cereal sales</span></label>
-        <label class="agent-check"><input type="checkbox" class="bnaAgentCategory" value="POS"><span><strong>POS</strong><br>Process POS transactions</span></label>
-        <label class="agent-check"><input type="checkbox" class="bnaAgentCategory" value="Wi-Fi"><span><strong>Wi-Fi Hotspot</strong><br>Process Wi-Fi ticket sales</span></label>
-      </div>
+      <p class="hint">These categories come from the manager's own store categories.</p>
+      <div class="agent-checks" id="agentCategoryChoices"><p class="hint">Create a store category first.</p></div>
       <div class="agent-actions"><button class="agent-btn" type="submit">Save Agent</button><button class="agent-btn secondary" id="bnaAgentReset" type="button">Clear Form</button></div>
       <div id="bnaAgentStatus" class="agent-status" role="status" aria-live="polite">Agent accounts and permissions are saved to Firebase.</div>
     </form>
@@ -510,7 +507,16 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 
 <section id="storeView" class="store-view" aria-label="Store inventory" style="display:none">
   <main>
-
+    <section class="pos-settings" id="categoryManagerPanel" hidden>
+      <h2>Manage Store Categories</h2>
+      <p class="hint">Create the categories that fit this business. Categories are private to this manager's store.</p>
+      <form id="storeCategoryForm" class="pos-range-form">
+        <input id="newStoreCategory" type="text" maxlength="50" placeholder="New category name (e.g. Textile)" aria-label="New category name" required>
+        <button class="btn btn-primary" type="submit">＋ Create Category</button>
+      </form>
+      <div id="storeCategoryList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
+      <p class="hint" id="storeCategoryStatus" role="status"></p>
+    </section>
 
     <section class="pos-settings" id="posSettingsPanel" hidden>
       <h2>POS Charge Settings</h2>
@@ -560,8 +566,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           <div class="field full">
             <label for="category">Category</label>
             <select id="category" name="category" required>
-              <option value="Cereal">Cereal</option>
-              <option value="Drinks">Drinks</option>
+              <option value="">Create or select a store category</option>
             </select>
           </div>
           <div class="field full">
@@ -790,6 +795,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       bnaAuthInitialized=true;
       window.dispatchEvent(new CustomEvent('bna-auth-ready',{detail:{user,role}}));
       setTimeout(syncOfflineSales,700);
+      if(typeof window.bnaRefreshStoreCategoryViews==='function') window.bnaRefreshStoreCategoryViews();
       if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
       restoreCurrentView();
       // Reveal the app only after the intended section has been restored.
@@ -803,7 +809,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   let products = [];
   let cart = [];
   let editingCartId = null;
-  let selectedCategory = 'Cereal';
+  let selectedCategory = '';
+  function storeCategories(){const a=window.bnaAuthState;const saved=a?.role==='agent'?a.categories:a?.profile?.storeCategories;return Array.isArray(saved)?saved.filter(x=>typeof x==='string'&&x.trim()):[];}
+  function refreshStoreCategoryViews(){renderCategoryButtons();renderProductOptions();renderCart();}
+  window.bnaRefreshStoreCategoryViews=refreshStoreCategoryViews;
   let recentSales = loadJson(tenantStorageKey('bna_crm_sales_v1'), []);
 
   function loadJson(key, fallback) {
@@ -865,21 +874,16 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   }
 
   function productCategory(p) {
-    const saved = String(p.category || p.categoryName || p.productCategory || p.group || p.type || '').trim().toLocaleLowerCase();
-    const name = String(p.name || '').toLocaleLowerCase();
-    // This CRM screen intentionally has only the two requested categories.
-    const drinkPattern = /\b(drinks?|beverages?|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt|energy drink)\b/;
-    if (drinkPattern.test(saved) || drinkPattern.test(name)) return 'Drinks';
-    // Beans, rice, grains and other non-drink stock are shown in Cereal for now.
-    return 'Cereal';
+    return String(p?.category || p?.categoryName || p?.productCategory || p?.group || p?.type || '').trim();
   }
 
   function renderCategoryButtons() {
     const root = $('categoryButtons');
-    let categories = ['Cereal', 'Drinks', 'POS', 'Wi-Fi'];
+    let categories = storeCategories();
     const authState=window.bnaAuthState;
     if(authState?.role==='agent') categories=categories.filter(category=>(authState.categories||[]).includes(category));
-    if (!categories.includes(selectedCategory)) selectedCategory = categories[0] || 'Cereal';
+    if(!categories.length){if(!['POS','Wi-Fi'].includes(selectedCategory))selectedCategory='';root.innerHTML='<div class="no-products">No categories have been created for this store yet. The manager can add categories in Store → Manage Store Categories.</div>';return;}
+    if (!categories.includes(selectedCategory) && !['POS','Wi-Fi'].includes(selectedCategory)) selectedCategory = categories[0];
     root.innerHTML = '';
     categories.forEach(category => {
       const button = document.createElement('button');
@@ -887,15 +891,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       button.className = 'category-button' + (category === selectedCategory ? ' active' : '');
       button.textContent = category;
       button.setAttribute('aria-pressed', String(category === selectedCategory));
-      button.addEventListener('click', () => {
-        selectedCategory = category;
-        renderCategoryButtons();
-        renderProductOptions();
-        renderCart();
-      });
+      button.addEventListener('click', () => { selectedCategory = category; renderCategoryButtons(); renderProductOptions(); renderCart(); });
       root.appendChild(button);
     });
   }
+  document.querySelectorAll('[data-special-service]').forEach(button=>button.addEventListener('click',()=>{
+    selectedCategory=button.dataset.specialService;renderCategoryButtons();renderProductOptions();renderCart();
+  }));
 
   const POS_RANGES_KEY = () => tenantStorageKey('bna_pos_charge_ranges_v1');
   const defaultPosRanges = [
@@ -976,12 +978,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     if(selectedCategory==='Wi-Fi'){renderWifiOptions(root);return;}
     root.classList.remove('pos-options');
     $('completeSale').textContent='Complete Sale';
-    const matches = products.filter(p => productCategory(p) === selectedCategory);
+    const matches = selectedCategory ? products.filter(p => productCategory(p) === selectedCategory) : []; 
     root.innerHTML = '';
     if (!matches.length) {
       const empty = document.createElement('div');
       empty.className = 'no-products';
-      empty.textContent = 'No products in this category.';
+      empty.textContent = selectedCategory ? 'No products in this category.' : 'Create a store category, then add products to it.';
       root.appendChild(empty);
       return;
     }
@@ -1144,15 +1146,16 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         if(requested>info.available)throw new Error(`Not enough ${item.name} in cached stock. Available: ${info.available}. Sale was not saved.`);
       }
       const now=new Date().toISOString(),saleId=makeId();
-      const grouped={Cereal:[],Drinks:[],POS:[],'Wi-Fi':[]};
-      cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';grouped[category].push({...item,category});});
+      const grouped={};
+      cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));const category=productCategory(p)||'Uncategorised';if(!grouped[category])grouped[category]=[];grouped[category].push({...item,category});});
+      grouped.POS=grouped.POS||[];grouped['Wi-Fi']=grouped['Wi-Fi']||[];
       chosenRanges.forEach(range=>{grouped.POS.push({cartId:makeId(),productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:Number(range.charge)||0,rangeMin:Number(range.min),rangeMax:Number(range.max)});});
       chosenWifi.forEach(ticket=>{grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(ticket.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:ticket.quantity,unitPrice:Number(ticket.price)});});
       const updatedProducts=new Map();
       cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));if(!updatedProducts.has(String(p.id)))updatedProducts.set(String(p.id),p);p.soldUnits=Math.max(0,Number(p.soldUnits)||0)+item.quantity*(item.conversionUnits||1);p.updatedAt=now;});
       const inventoryUpdates=[...updatedProducts.values()].map(p=>({id:String(p.id),soldUnits:p.soldUnits,updatedAt:now}));
       const records=[];
-      ['Cereal','Drinks','POS','Wi-Fi'].forEach(category=>{const items=grouped[category];if(!items.length)return;const id=makeId();const total=items.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);records.push({id,date:now,type:category,category,total,items:items.map(item=>({...item})),createdBy:authState.user.uid,createdByEmail:authState.user.email||'',businessId:authState.tenantId,managerUid:authState.managerUid||authState.tenantId,offlineSaleId:saleId});});
+      [...new Set([...storeCategories(),'POS','Wi-Fi',...Object.keys(grouped)])].forEach(category=>{const items=grouped[category]||[];if(!items.length)return;const id=makeId();const total=items.reduce((sum,item)=>sum+(Number(item.quantity)||0)*(Number(item.unitPrice)||0),0);records.push({id,date:now,type:category,category,total,items:items.map(item=>({...item})),createdBy:authState.user.uid,createdByEmail:authState.user.email||'',businessId:authState.tenantId,managerUid:authState.managerUid||authState.tenantId,offlineSaleId:saleId});});
       const entry={saleId,createdAt:now,records,inventoryUpdates,createdBy:authState.user.uid};
       if(!navigator.onLine){
         const queue=getOfflineQueue();queue.push(entry);saveOfflineQueue(queue);updateSyncStatus();updateSyncStatus();
@@ -1293,10 +1296,13 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function agentStatus(message,error=false){const el=$('bnaAgentStatus');if(el){el.textContent=message;el.classList.toggle('error',!!error)}}
   async function agentRead(){const manager=window.bnaAuthState?.user;if(!manager)return[];const snap=await db.collection('users').where('managerUid','==',manager.uid).where('businessId','==',window.bnaAuthState.tenantId).get();agentRowsCache=snap.docs.map(d=>({id:d.id,...d.data()})).filter(a=>a.role==='agent');return agentRowsCache;}
   async function renderAgentRows(){const root=$('bnaAgentRows');if(!root)return;root.innerHTML='<tr><td colspan="6" style="text-align:center;padding:18px">Loading agents from Firebase…</td></tr>';try{const list=await agentRead();if(!list.length){root.innerHTML='<tr><td colspan="6" style="text-align:center;padding:18px">No agents created yet. Use the form above to create an agent.</td></tr>';return}root.innerHTML=list.map(a=>`<tr><td><strong>${agentEsc(a.name)}</strong><br>${agentEsc(a.username)}</td><td>${a.jobRole==='accountant'?'Accountant':'Sales Boy'}</td><td>${(a.pages||[]).map(agentEsc).join(', ')||'No pages assigned'}</td><td>${(a.categories||[]).map(agentEsc).join(', ')||'No categories assigned'}</td><td>${a.active===false?'Disabled':'Active'}</td><td><button class="agent-btn secondary" type="button" data-agent-edit="${agentEsc(a.id)}">Edit</button> <button class="agent-btn ${a.active===false?'':'danger'}" type="button" data-agent-toggle="${agentEsc(a.id)}">${a.active===false?'Enable':'Disable'}</button></td></tr>`).join('');root.querySelectorAll('[data-agent-edit]').forEach(b=>b.addEventListener('click',()=>editBnaAgent(b.dataset.agentEdit)));root.querySelectorAll('[data-agent-toggle]').forEach(b=>b.addEventListener('click',()=>toggleBnaAgent(b.dataset.agentToggle)));}catch(e){console.error(e);root.innerHTML='<tr><td colspan="6">Could not load agents from Firebase. Check Firestore rules and internet.</td></tr>';agentStatus('Could not load agents: '+(e.message||e.code||'Firebase error'),true)}}
-  function resetBnaAgentForm(){$('bnaAgentForm').reset();$('bnaAgentId').value='';$('agentFormHeading').textContent='Create Agent';$('bnaAgentPassword').required=true;$('bnaAgentPassword').placeholder='Create password (required for new agent)';$('bnaAgentUsername').disabled=false;document.querySelectorAll('.bnaAgentPage').forEach(x=>x.checked=x.value==='sales');document.querySelectorAll('.bnaAgentCategory').forEach(x=>x.checked=['Drinks','Cereal'].includes(x.value));}
-  function editBnaAgent(id){const a=agentRowsCache.find(x=>x.id===id);if(!a)return;$('bnaAgentId').value=a.id;$('bnaAgentName').value=a.name||'';$('bnaAgentUsername').value=a.username||'';$('bnaAgentUsername').disabled=true;$('bnaAgentPassword').value='';$('bnaAgentPassword').required=false;$('bnaAgentPassword').placeholder='Leave blank (Firebase password is not changed here)';$('bnaAgentRole').value=a.jobRole||'salesboy';$('agentFormHeading').textContent='Edit Agent';document.querySelectorAll('.bnaAgentPage').forEach(x=>x.checked=(a.pages||[]).includes(x.value));document.querySelectorAll('.bnaAgentCategory').forEach(x=>x.checked=(a.categories||[]).includes(x.value));$('agentView').scrollIntoView({behavior:'smooth',block:'start'});agentStatus('Editing '+a.name+'. Save Agent to update Firebase permissions. Password changes require a separate password-reset flow.');}
+  function renderAgentCategoryChoices(selected=[]){const root=$('agentCategoryChoices');if(!root)return;const categories=storeCategories();root.innerHTML='';if(!categories.length){root.innerHTML='<p class="hint">Create a store category first, then assign it to agents.</p>';return;}categories.forEach(category=>{const label=document.createElement('label');label.className='agent-check';const input=document.createElement('input');input.type='checkbox';input.className='bnaAgentCategory';input.value=category;input.checked=selected.includes(category);const span=document.createElement('span');const strong=document.createElement('strong');strong.textContent=category;span.appendChild(strong);label.append(input,span);root.appendChild(label);});}
+  window.addEventListener('bna-categories-updated',()=>renderAgentCategoryChoices([]));
+  function resetBnaAgentForm(){$('bnaAgentForm').reset();$('bnaAgentId').value='';$('agentFormHeading').textContent='Create Agent';$('bnaAgentPassword').required=true;$('bnaAgentPassword').placeholder='Create password (required for new agent)';$('bnaAgentUsername').disabled=false;document.querySelectorAll('.bnaAgentPage').forEach(x=>x.checked=x.value==='sales');renderAgentCategoryChoices([]);}
+  function editBnaAgent(id){const a=agentRowsCache.find(x=>x.id===id);if(!a)return;$('bnaAgentId').value=a.id;$('bnaAgentName').value=a.name||'';$('bnaAgentUsername').value=a.username||'';$('bnaAgentUsername').disabled=true;$('bnaAgentPassword').value='';$('bnaAgentPassword').required=false;$('bnaAgentPassword').placeholder='Leave blank (Firebase password is not changed here)';$('bnaAgentRole').value=a.jobRole||'salesboy';$('agentFormHeading').textContent='Edit Agent';document.querySelectorAll('.bnaAgentPage').forEach(x=>x.checked=(a.pages||[]).includes(x.value));renderAgentCategoryChoices(a.categories||[]);$('agentView').scrollIntoView({behavior:'smooth',block:'start'});agentStatus('Editing '+a.name+'. Save Agent to update Firebase permissions. Password changes require a separate password-reset flow.');}
   async function toggleBnaAgent(id){const a=agentRowsCache.find(x=>x.id===id);if(!a)return;try{await db.collection('users').doc(id).update({active:a.active===false,updatedAt:new Date().toISOString()});await renderAgentRows();agentStatus(a.name+' is now '+(a.active===false?'active.':'disabled.'));}catch(e){agentStatus('Could not change agent status: '+(e.message||e.code||''),true)}}
   $('bnaAgentForm').addEventListener('submit',async e=>{e.preventDefault();if(!window.bnaAuthState?.ready||window.bnaAuthState.role!=='admin'){agentStatus('Only the business manager can create or manage agents.',true);return}const id=$('bnaAgentId').value,name=$('bnaAgentName').value.trim(),username=$('bnaAgentUsername').value.trim(),password=$('bnaAgentPassword').value,jobRole=$('bnaAgentRole').value,pages=[...document.querySelectorAll('.bnaAgentPage:checked')].map(x=>x.value),categories=[...document.querySelectorAll('.bnaAgentCategory:checked')].map(x=>x.value);if(!name||!username||(!id&&!password)){agentStatus('Enter the agent name, username, and password.',true);return}const usernameKey=agentUsernameKey(username);if(!/^[a-z0-9._-]{3,40}$/.test(usernameKey)){agentStatus('Username must be 3–40 characters using letters, numbers, dots, underscores, or hyphens.',true);return}if(!id&&(password.length<6)){agentStatus('Firebase requires a password of at least 6 characters.',true);return}if((pages.includes('sales')||pages.includes('loanSales'))&&!categories.length){agentStatus('Select at least one sales category for an agent allowed to process sales.',true);return}const btn=$('bnaAgentForm').querySelector('button[type="submit"]');btn.disabled=true;try{const manager=window.bnaAuthState.user,now=new Date().toISOString();if(id){await db.collection('users').doc(id).update({name,jobRole,pages,categories,updatedAt:now});agentStatus('Agent permissions updated in Firebase.');}else{const usernameRef=db.collection('agentUsernames').doc(usernameKey);const usernameSnap=await usernameRef.get();if(usernameSnap.exists)throw new Error('That username is already in use. Choose another username.');let createdUser=null;try{const secondaryAuth=getAgentSecondaryAuth();const cred=await secondaryAuth.createUserWithEmailAndPassword(agentEmailFromUsername(usernameKey),password);createdUser=cred.user;const agentData={role:'agent',active:true,name,username:usernameKey,email:agentEmailFromUsername(usernameKey),jobRole,pages,categories,managerUid:manager.uid,businessId:window.bnaAuthState.tenantId,tenantId:window.bnaAuthState.tenantId,createdAt:now,updatedAt:now};const accountBatch=db.batch();accountBatch.set(db.collection('users').doc(createdUser.uid),agentData);accountBatch.set(usernameRef,{uid:createdUser.uid,username:usernameKey,managerUid:manager.uid,businessId:window.bnaAuthState.tenantId,createdAt:now});await accountBatch.commit();await secondaryAuth.signOut();agentStatus('Agent account created in Firebase Authentication and Firestore. Share username “'+usernameKey+'” and the password with the agent.');}catch(err){if(createdUser){try{await createdUser.delete()}catch(_){}}throw err;}}resetBnaAgentForm();await renderAgentRows();}catch(err){console.error(err);agentStatus('Could not save agent ('+(err.code||'Firebase')+'): '+(err.message||'Check Authentication and Firestore rules.'),true)}finally{btn.disabled=false;}});
+  window.addEventListener('bna-auth-ready',()=>renderAgentCategoryChoices([]));
   $('bnaAgentReset').addEventListener('click',()=>{resetBnaAgentForm();agentStatus('Form cleared.')});
   $('agentNavButton').addEventListener('click',()=>{if(!window.bnaAuthState?.ready||window.bnaAuthState.role!=='admin'){alert('Agent management is available to the business manager only.');return}['homeView','accountView','storeView','transactionView','loanView','agentView'].forEach(id=>{const el=$(id);if(el)el.style.display=id==='agentView'?'block':'none'});document.querySelectorAll('.nav-inner a[data-view]').forEach(a=>{a.removeAttribute('aria-current');a.style.background=''});$('agentNavButton').style.background='#ffffff35';if(location.hash!=='#agentView')history.replaceState(null,'','#agentView');renderAgentRows();window.scrollTo({top:0,behavior:'auto'});});
 
@@ -1313,7 +1319,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   function updateLoanAccountSummary(){const active=loanRecords.filter(l=>!l.deleted);const total=active.reduce((sum,l)=>sum+Math.max(0,Number(l.amountLoaned)||0),0);const balance=active.reduce((sum,l)=>sum+Math.max(0,Number(l.outstanding)||0),0);const repaid=Math.max(0,total-balance);const a=$('accountTotalLoaned'),b=$('accountLoanBalance'),c=$('accountLoanRepaid');if(a)a.textContent=loanMoney(total);if(b)b.textContent=loanMoney(balance);if(c)c.textContent=loanMoney(repaid)}
   function renderLoans(){updateLoanAccountSummary();const q=($('loanSearch')?.value||'').trim().toLowerCase(),tbody=$('loanRows');if(!tbody)return;tbody.innerHTML='';const rows=loanRecords.filter(l=>!q||String(l.customerName||'').toLowerCase().includes(q)||String(l.customerPhone||'').toLowerCase().includes(q));if(!rows.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:20px">No loan records found.</td></tr>';return}rows.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).forEach(l=>{const tr=document.createElement('tr');const cells=[l.customerName||'—',l.customerPhone||'—',loanMoney(l.amountLoaned),loanMoney(l.outstanding),l.date||'—'];cells.forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i===3){td.className='loan-amount'}tr.appendChild(td)});const repay=document.createElement('td'),actions=document.createElement('div');actions.className='loan-actions';const input=document.createElement('input');input.type='number';input.min='0.01';input.step='0.01';input.max=String(Math.max(0,Number(l.outstanding)||0));input.placeholder='₦ amount';input.setAttribute('aria-label','Repayment amount for '+l.customerName);const save=document.createElement('button');save.type='button';save.className='loan-small';save.textContent='Save';save.disabled=Number(l.outstanding)<=0;save.addEventListener('click',()=>recordLoanRepayment(l.id,input.value));actions.append(input,save);repay.appendChild(actions);tr.appendChild(repay);const callCell=document.createElement('td'),call=document.createElement('a');call.className='loan-call';call.textContent='☎ Call';const phone=String(l.customerPhone||'').trim();call.href=phone?'tel:'+phone.replace(/[^+\d]/g,''):'#';call.setAttribute('aria-label','Call '+(l.customerName||'customer'));if(!phone){call.href='#';call.addEventListener('click',e=>{e.preventDefault();alert('No phone number is saved for this customer.')})}callCell.appendChild(call);tr.appendChild(callCell);const delCell=document.createElement('td'),del=document.createElement('button');del.type='button';del.className='loan-small loan-delete';del.textContent='Delete';del.addEventListener('click',()=>deleteLoanRecord(l.id));delCell.appendChild(del);tr.appendChild(delCell);tbody.appendChild(tr)})}
   async function loadLoans(){try{if(navigator.onLine&&window.bnaAuthState?.ready){let query=tenantQuery('loans');const st=window.bnaAuthState;if(st.role==='agent'&&!hasAgentPage('loans'))query=query.where('createdBy','==',st.user.uid);const snap=await query.get();loanRecords=snap.docs.map(d=>({id:d.id,...d.data()})).filter(l=>!l.deleted);saveLoanCache()}renderLoans();updateLoanAccountSummary()}catch(e){console.warn('Loan records loaded from local cache:',e);renderLoans();updateLoanAccountSummary()}}
-  function currentCreditItems(latest){const ranges=getPosRanges(),chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]),prices=getWifiPrices(),chosenWifi=[...selectedWifiPrices].filter(i=>prices[i]!==undefined).map(i=>({price:prices[i],quantity:selectedWifiQuantities.get(i)||1}));const grouped={Cereal:[],Drinks:[],POS:[], 'Wi-Fi':[]};cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));const category=productCategory(p)==='Drinks'?'Drinks':'Cereal';grouped[category].push({...item,category})});chosenRanges.forEach(range=>grouped.POS.push({cartId:makeId(),productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:Number(range.charge)||0}));chosenWifi.forEach(t=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(t.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:t.quantity,unitPrice:Number(t.price)}));return {grouped,chosenWifi}}
+  function currentCreditItems(latest){const ranges=getPosRanges(),chosenRanges=[...selectedPosRanges].filter(i=>ranges[i]).map(i=>ranges[i]),prices=getWifiPrices(),chosenWifi=[...selectedWifiPrices].filter(i=>prices[i]!==undefined).map(i=>({price:prices[i],quantity:selectedWifiQuantities.get(i)||1}));const grouped={};cart.forEach(item=>{const p=latest.find(product=>String(product.id)===String(item.productId));const category=productCategory(p)||'Uncategorised';if(!grouped[category])grouped[category]=[];grouped[category].push({...item,category})});grouped.POS=grouped.POS||[];grouped['Wi-Fi']=grouped['Wi-Fi']||[];chosenRanges.forEach(range=>grouped.POS.push({cartId:makeId(),productId:'POS',name:'POS '+formatPosRange(range),category:'POS',section:'transaction',conversionUnits:1,quantity:1,unitPrice:Number(range.charge)||0}));chosenWifi.forEach(t=>grouped['Wi-Fi'].push({cartId:makeId(),productId:'WIFI-TICKET',name:'Wi-Fi '+wifiMoney(t.price),category:'Wi-Fi',section:'ticket',conversionUnits:1,quantity:t.quantity,unitPrice:Number(t.price)}));return {grouped,chosenWifi}}
   function openLoanModal(){if(!cart.length&&!selectedPosRanges.size&&!selectedWifiPrices.size){setNotice('Add products, POS charge, or Wi-Fi tickets to the bill before choosing Loan / Credit.','error');return}const date=new Date();$('loanDate').value=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;const items=[];cart.forEach(i=>items.push(`${i.name} × ${i.quantity} — ${loanMoney(i.quantity*i.unitPrice)}`));const ranges=getPosRanges();[...selectedPosRanges].forEach(i=>{if(ranges[i])items.push(`POS ${formatPosRange(ranges[i])} — ${loanMoney(ranges[i].charge)}`)});const prices=getWifiPrices();[...selectedWifiPrices].forEach(i=>{if(prices[i]!==undefined)items.push(`Wi-Fi ${loanMoney(prices[i])} × ${selectedWifiQuantities.get(i)||1} — ${loanMoney(prices[i]*(selectedWifiQuantities.get(i)||1))}`)});$('loanProductList').textContent=items.join(' | ')||'No items selected';$('loanTotal').value=loanMoney(cart.reduce((s,i)=>s+i.quantity*i.unitPrice,0)+[...selectedPosRanges].reduce((s,i)=>s+(ranges[i]?.charge||0),0)+[...selectedWifiPrices].reduce((s,i)=>s+(prices[i]||0)*(selectedWifiQuantities.get(i)||1),0));$('loanModal').classList.add('open')}
   function closeLoanModal(){$('loanModal').classList.remove('open')}
   async function completeCreditSale(e){e.preventDefault();const authState=window.bnaAuthState;if(!authState?.ready||!authState.user||!['admin','cashier','agent'].includes(authState.role)||(authState.role==='agent'&&!hasAgentPage('loanSales'))){loanStatus('Sign in with an authorized cashier account first.',true);return}const total=Number(String($('loanTotal').value).replace(/[^0-9.]/g,''));const customerName=$('loanCustomerName').value.trim(),customerPhone=$('loanCustomerPhone').value.trim(),date=$('loanDate').value;if(!customerName||!customerPhone||!date||!(total>0)){loanStatus('Enter the customer name, phone, date, and a valid bill.',true);return}const btn=$('loanModalSubmit');if(btn.dataset.saving==='1')return;btn.dataset.saving='1';btn.disabled=true;btn.textContent='Saving credit sale…';try{let latest=[];if(navigator.onLine){const snap=await tenantQuery('inventory').get();latest=snap.docs.map(d=>({...d.data(),id:d.id}));localStorage.setItem(tenantStorageKey('bna_store_inventory_v1'),JSON.stringify(latest))}else latest=loadJson(tenantStorageKey('bna_store_inventory_v1'),[]);for(const item of cart){const p=latest.find(x=>String(x.id)===String(item.productId));if(!p)throw new Error('Product inventory is not available in the local cache. Open Store while online before recording credit sales.');const requested=cart.filter(x=>String(x.productId)===String(item.productId)).reduce((n,x)=>n+x.quantity*(x.conversionUnits||1),0);if(requested>stockInfo(p).available)throw new Error(`Not enough ${item.name} in stock. Credit sale was not saved.`)}const now=new Date().toISOString(),loanId=makeId(),{grouped,chosenWifi}=currentCreditItems(latest),updates=new Map();cart.forEach(item=>{const p=latest.find(x=>String(x.id)===String(item.productId));if(!updates.has(String(p.id)))updates.set(String(p.id),p);p.soldUnits=Math.max(0,Number(p.soldUnits)||0)+item.quantity*(item.conversionUnits||1);p.updatedAt=now});const inventoryUpdates=[...updates.values()].map(p=>({id:String(p.id),soldUnits:p.soldUnits,updatedAt:now}));const loanItems=Object.values(grouped).flat().map(i=>({...i}));const records=[];Object.keys(grouped).forEach(category=>{const items=grouped[category];if(!items.length)return;const id=makeId();records.push({id,date:new Date(date+'T12:00:00').toISOString(),type:'Loan/Credit',category,total:0,amount:0,paymentStatus:'credit',loanId,customerName,customerPhone,items:items.map(i=>({...i})),createdBy:authState.user.uid,createdByEmail:authState.user.email||'',businessId:authState.tenantId,managerUid:authState.managerUid||authState.tenantId})});const loan={id:loanId,customerName,customerPhone,date,amountLoaned:total,outstanding:total,items:loanItems,categoryTotals:Object.fromEntries(Object.entries(grouped).filter(([k,v])=>v.length>0).map(([k,v])=>[k,v.reduce((n,i)=>n+(Number(i.quantity)||0)*(Number(i.unitPrice)||0),0)])),createdAt:now,createdBy:authState.user.uid,deleted:false,businessId:authState.tenantId,managerUid:authState.managerUid||authState.tenantId};if(navigator.onLine){const batch=db.batch();batch.set(db.collection('loans').doc(loanId),loan);inventoryUpdates.forEach(p=>batch.set(db.collection('inventory').doc(p.id),{soldUnits:p.soldUnits,updatedAt:p.updatedAt,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId()},{merge:true}));records.forEach(r=>batch.set(db.collection('sales').doc(r.id),r));await batch.commit()}else{const q=loanQueue();q.push({opId:loanId,loan,inventoryUpdates,records});saveLoanQueue(q);inventoryUpdates.forEach(p=>{const ix=latest.findIndex(x=>String(x.id)===p.id);if(ix>=0)latest[ix].soldUnits=p.soldUnits})}loanRecords=[loan,...loanRecords.filter(l=>l.id!==loanId)];saveLoanCache();if(cart.length)localStorage.setItem(tenantStorageKey('bna_store_inventory_v1'),JSON.stringify(latest));updateWifiStockAfterSale(chosenWifi);updatePosRevenueAfterSale(grouped.POS);cart=[];selectedPosRanges.clear();selectedWifiPrices.clear();selectedWifiQuantities.clear();closeLoanModal();$('loanForm').reset();renderProductOptions();renderCart();renderLoans();await refreshAccountSales();if(txState)fetchTransactions().catch(()=>{});setNotice(`Credit sale recorded for ${customerName}. Outstanding: ${loanMoney(total)}. No cash was added to the account.`, 'success');alert(`CREDIT SALE SAVED
@@ -1353,6 +1359,25 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
 
     // Persistence is intentionally not enabled here: the Home view may already have used Firestore.
     function isAdmin(){return !!(window.bnaAuthState && window.bnaAuthState.ready && window.bnaAuthState.role==='admin')}
+    function managerCategories(){const a=window.bnaAuthState;return Array.isArray(a?.profile?.storeCategories)?a.profile.storeCategories:[]}
+    function renderManagerCategories(){
+      const panel=byId('categoryManagerPanel');if(panel)panel.hidden=!isAdmin();
+      const list=byId('storeCategoryList');if(!list)return;const categories=managerCategories();list.innerHTML='';
+      if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}else categories.forEach(name=>{const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;list.appendChild(tag)});
+      const select=byId('category');if(select){const current=select.value;select.innerHTML='<option value="">Select a category</option>';categories.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option)});if(categories.includes(current))select.value=current;else if(categories.length===1)select.value=categories[0];}
+      if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
+    }
+    window.addEventListener('bna-categories-updated',renderManagerCategories);
+    byId('storeCategoryForm').addEventListener('submit',async e=>{
+      e.preventDefault();if(!isAdmin()){byId('storeCategoryStatus').textContent='Only the manager can create categories.';return;}
+      const input=byId('newStoreCategory'),name=input.value.trim().replace(/\s+/g,' '),existing=managerCategories();
+      if(!name){return;}if(name.length>50){byId('storeCategoryStatus').textContent='Category names must be 50 characters or fewer.';return;}
+      if(existing.some(x=>x.toLowerCase()===name.toLowerCase())){byId('storeCategoryStatus').textContent='That category already exists.';return;}
+      const next=[...existing,name];const button=byId('storeCategoryForm').querySelector('button');button.disabled=true;
+      try{await db.collection('users').doc(window.bnaAuthState.user.uid).update({storeCategories:next,updatedAt:new Date().toISOString()});window.bnaAuthState.profile.storeCategories=next;input.value='';byId('storeCategoryStatus').textContent='Category “'+name+'” created for this store.';renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));}
+      catch(err){console.error(err);byId('storeCategoryStatus').textContent='Could not save category: '+(err.message||err.code||'Firebase error');}
+      finally{button.disabled=false;}
+    });
     let inventoryUnsubscribe = null;
     function startInventoryListener(){
       // Start the protected listener only after Firebase Auth and the user's role are ready.
@@ -1361,6 +1386,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       inventoryUnsubscribe = tenantQuery('inventory').onSnapshot(snapshot=>{
         products=snapshot.docs.map(d=>({...d.data(),id:d.id}));
         try{localStorage.setItem(LOCAL_KEY(),JSON.stringify(products))}catch(_){}
+        if(isAdmin()&&!managerCategories().length){const legacy=[...new Set(products.map(p=>String(p.category||'').trim()).filter(Boolean).filter(c=>!['POS','Wi-Fi'].includes(c)))];if(legacy.length){db.collection('users').doc(window.bnaAuthState.user.uid).update({storeCategories:legacy,updatedAt:new Date().toISOString()}).then(()=>{window.bnaAuthState.profile.storeCategories=legacy;renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:legacy}}))}).catch(err=>console.warn('Could not migrate existing category names',err));}}
         renderProducts();
         byId('syncStatus').textContent=!navigator.onLine?'Offline: showing cached inventory.':'Connected to Firebase. Inventory changes sync across devices.';
         if(typeof window.bnaReloadProducts==='function') window.bnaReloadProducts();
@@ -1391,7 +1417,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       if(byId('posFloatDisplay'))byId('posFloatDisplay').textContent=fmt(state.startingFloat);if(byId('posRevenueDisplay'))byId('posRevenueDisplay').textContent=fmt(state.revenue);if(byId('posTrackedDisplay'))byId('posTrackedDisplay').textContent=fmt((Number(state.startingFloat)||0)+(Number(state.revenue)||0));if(byId('posTxnCountDisplay'))byId('posTxnCountDisplay').textContent=Number(state.transactions)||0;
     }
     function updateStoreAccess(){
-      const allowed=isAdmin();renderPosSettings();renderStockPanels();
+      const allowed=isAdmin();renderManagerCategories();renderPosSettings();renderStockPanels();
       byId('showProductForm').hidden=!allowed;
       document.querySelectorAll('#productForm input,#productForm select,#productForm button').forEach(el=>{if(el.id!=='cancelEdit')el.disabled=!allowed});
       if(!allowed){byId('productFormPanel').hidden=true;byId('syncStatus').textContent='Store management is restricted to administrators.';}
@@ -1479,7 +1505,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       body.innerHTML=visible.map(p=>{
         const c=calculations(p),serial=products.findIndex(x=>x.id===p.id)+1;
         const levels=c.levels.map(l=>`${Number(l.quantity).toLocaleString()} ${escapeHtml(l.unit||'unit')}`).join(' → ')||'—';
-        return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td><span class="category-tag">${escapeHtml(p.category||'Cereal')}</span></td><td>${c.packs.toLocaleString()} ${escapeHtml(c.mainUnit)}</td><td>${levels}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td>${isAdmin()?`<div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div>`:'—'}</td></tr>`;
+        return `<tr><td>${serial}</td><td><strong>${escapeHtml(p.name)}</strong></td><td><span class="category-tag">${escapeHtml(p.category||'Uncategorised')}</span></td><td>${c.packs.toLocaleString()} ${escapeHtml(c.mainUnit)}</td><td>${levels}</td><td>${c.units.toLocaleString()}${c.soldUnits?`<small style="display:block;color:#647067">Sold: ${c.soldUnits.toLocaleString()}</small>`:''}</td><td>${money(c.unitPrice)}</td><td><strong>${money(c.stockValue)}</strong></td><td>${isAdmin()?`<div class="actions" style="margin:0;flex-wrap:nowrap"><button class="btn btn-secondary" type="button" data-edit="${escapeHtml(p.id)}">Edit</button><button class="btn btn-danger" type="button" data-delete="${escapeHtml(p.id)}">Delete</button></div>`:'—'}</td></tr>`;
       }).join('');
       body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));
       body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
@@ -1492,7 +1518,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     }
     function editProduct(id){
       const p=products.find(x=>x.id===id);if(!p)return;editingId=id;
-      byId('productName').value=p.name||'';byId('category').value=p.category||'Cereal';
+      byId('productName').value=p.name||'';byId('category').value=p.category||'';
       byId('unitPrice').value=p.unitPrice??0;
       byId('subQuantityRows').innerHTML='';levelCounter=0;
       const conversions=Array.isArray(p.subQuantities)?p.subQuantities:[{quantity:p.muduPerPack??40,unit:'mudu'},{quantity:p.unitsPerMudu??16,unit:'unit'}];
