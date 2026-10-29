@@ -392,8 +392,14 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 @media(max-width:650px){#agentView{width:calc(100% - 14px);margin-top:14px}#agentView .agent-card{padding:12px}#agentView .agent-grid,#agentView .agent-checks{grid-template-columns:1fr}.agent-nav-button{min-height:36px;padding:6px 10px;font-size:.76rem}}
 
 
-/* User-requested removal: hide the specified management/settings containers without disturbing other features. */
-#categoryManagerPanel, #posSettingsPanel, #wifiStockPanel, #posFloatPanel { display: none !important; }
+/* Store management: keep category creation visible; hide only secondary settings panels. */
+#categoryManagerPanel { display:block; }
+#posSettingsPanel, #wifiStockPanel, #posFloatPanel { display:none !important; }
+#categoryManagerPanel .pos-range-form { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
+#categoryManagerPanel #newStoreCategory { flex:1 1 220px; min-width:0; }
+#categoryManagerPanel #storeCategoryStatus { min-height:1.3em; }
+#productFormPanel { scroll-margin-top:16px; }
+@media(max-width:600px){ #categoryManagerPanel .pos-range-form .btn { width:100%; } }
 </style>
 </head>
 <body>
@@ -513,8 +519,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 <section id="storeView" class="store-view" aria-label="Store inventory" style="display:none">
   <main>
     <section class="pos-settings" id="categoryManagerPanel" hidden>
-      <h2>Manage Store Categories</h2>
-      <p class="hint">Create the categories that fit this business. Categories are private to this manager's store.</p>
+      <h2>1. Create and Manage Categories</h2>
+      <p class="hint">Create categories here first. This is separate from product creation; each category is saved to this manager’s store and will appear in the product form.</p>
       <form id="storeCategoryForm" class="pos-range-form">
         <input id="newStoreCategory" type="text" maxlength="50" placeholder="New category name (e.g. Textile)" aria-label="New category name" required>
         <button class="btn btn-primary" type="submit">＋ Create Category</button>
@@ -559,9 +565,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <div class="summary"><small>TOTAL STOCK VALUE</small><strong id="totalValue">₦0.00</strong></div>
     </section>
 
-    <div class="add-product-trigger"><button class="btn btn-primary" id="showProductForm" type="button">＋ Add Product</button></div>
+    <div class="add-product-trigger"><button class="btn btn-primary" id="showProductForm" type="button">＋ Open Product Form</button></div>
     <section class="panel" id="productFormPanel" hidden>
-      <h2 id="formTitle">➕ Add Product</h2>
+      <h2 id="formTitle">2. Create Product</h2>
       <form id="productForm" novalidate>
         <div class="form-grid">
           <div class="field full">
@@ -573,7 +579,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
             <select id="category" name="category" required>
               <option value="">Create or select a store category</option>
             </select>
-            <p class="hint" id="productCategoryHint" role="status">Create categories separately in the “Manage Store Categories” section above, then select one here before saving the product.</p>
+            <p class="hint" id="productCategoryHint" role="status">First create a category in the separate “1. Create and Manage Categories” container above, then select it here.</p>
           </div>
           <div class="field full">
             <div id="subQuantityRows"></div>
