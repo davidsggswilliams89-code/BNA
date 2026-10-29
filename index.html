@@ -1574,7 +1574,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
     byId('saveButton').addEventListener('click',()=>{
-      if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Tap “Create category here” to create one, then save again.';byId('category').focus();}
+      if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Tap “Create category here” to create one, then save again.';const st=byId('syncStatus');st.hidden=false;st.style.color='#b42318';st.textContent='Product not saved: select a category first.';byId('category').focus();}
     });
     form.addEventListener('submit',async event=>{
       event.preventDefault();
@@ -1597,7 +1597,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
           await db.collection('inventory').doc(id).set(product);
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY())||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY(),JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
-        resetForm();byId('syncStatus').textContent=navigator.onLine?'Product saved to Firebase.':'Product saved locally; check your connection.';
+        resetForm();const savedStatus=byId('syncStatus');savedStatus.hidden=false;savedStatus.style.color='#17663a';savedStatus.textContent=navigator.onLine?'Product saved to Firebase.':'Product saved locally; check your connection.';
         if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
       }catch(e){console.error('Product save failed:',{code:e&&e.code,message:e&&e.message,error:e,tenantId:tenantId(),role:window.bnaAuthState&&window.bnaAuthState.role,uid:window.bnaAuthState&&window.bnaAuthState.user&&window.bnaAuthState.user.uid});const code=e&&e.code?String(e.code):'unknown error';const detail=e&&e.message?String(e.message):'No additional details were returned by Firebase.';alert('Product could not be saved.\n\nFirebase error: '+code+'\nDetails: '+detail+'\nStore ID: '+tenantId()+'\n\nIf this says permission-denied, check that the deployed Firestore rules match this manager profile and that the manager profile has businessId and managerUid equal to the manager Firebase UID.')}
       finally{byId('saveButton').disabled=false}
