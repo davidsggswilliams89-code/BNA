@@ -592,10 +592,10 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           <div>Estimated stock value: <strong id="previewValue">₦0.00</strong></div>
         </div>
         <div class="actions">
-          <button class="btn btn-primary" id="saveButton" type="submit">Save Product</button>
+          <button class="btn btn-primary" id="saveButton" type="button" onclick="(function(){var s=document.getElementById('syncStatus');if(s){s.hidden=false;s.style.display='block';s.style.color='#174ea6';s.textContent='Save button tapped. Checking product details…';}var f=document.getElementById('productForm');if(f){if(typeof f.requestSubmit==='function'){f.requestSubmit();}else{f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}}else if(s){s.textContent='Error: product form was not found on this page.';s.style.color='#b42318';}})()">Save Product</button>
           <button class="btn btn-secondary" id="cancelEdit" type="button" hidden>Cancel Edit</button>
         </div>
-        <p class="hint" id="syncStatus" role="status" aria-live="polite" hidden></p>
+        <p class="hint" id="syncStatus" role="status" aria-live="polite" style="display:block;min-height:1.4em;margin-top:10px;color:#174ea6"></p>
       </form>
     </section>
 
@@ -1556,11 +1556,6 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     byId('addSubQuantity').addEventListener('click',()=>addSubQuantity('',''));
     byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
-    byId('saveButton').addEventListener('click',()=>{
-      const st=byId('syncStatus');st.hidden=false;
-      if(!byId('category').value){st.style.color='#b42318';st.textContent='Product not saved: create a category in Manage Store Categories, then select it here.';byId('productCategoryHint').textContent='A category is required. Create one in the separate “Manage Store Categories” section above, then select it here.';byId('category').focus();}
-      else{st.style.color='#174ea6';st.textContent='Checking product details…';}
-    });
     form.addEventListener('submit',async event=>{
       event.preventDefault();
       const status=byId('syncStatus');
