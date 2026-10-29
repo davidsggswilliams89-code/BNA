@@ -573,8 +573,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
             <select id="category" name="category" required>
               <option value="">Create or select a store category</option>
             </select>
-            <button class="btn btn-secondary" id="createCategoryFromProduct" type="button" style="margin-top:8px">＋ Create category here</button>
-            <p class="hint" id="productCategoryHint" role="status">Enter a product name and select a category before saving. If your store has none, use “Create category here”.</p>
+            <p class="hint" id="productCategoryHint" role="status">Create categories separately in the “Manage Store Categories” section above, then select one here before saving the product.</p>
           </div>
           <div class="field full">
             <div id="subQuantityRows"></div>
@@ -1375,24 +1374,6 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
     }
     window.addEventListener('bna-categories-updated',renderManagerCategories);
-    byId('createCategoryFromProduct').addEventListener('click',async()=>{
-      if(!isAdmin()){alert('Please sign in with the manager account before creating a category.');return;}
-      const answer=prompt('Enter a new category name for this store:');
-      if(answer===null)return;
-      const name=answer.trim().replace(/\s+/g,' '),existing=managerCategories();
-      if(!name){alert('Enter a category name.');return;}
-      if(name.length>50){alert('Category names must be 50 characters or fewer.');return;}
-      if(existing.some(x=>x.toLowerCase()===name.toLowerCase())){renderManagerCategories();byId('category').value=existing.find(x=>x.toLowerCase()===name.toLowerCase());alert('That category already exists, so it has been selected.');return;}
-      const button=byId('createCategoryFromProduct');button.disabled=true;button.textContent='Creating category…';
-      try{
-        const next=[...existing,name];
-        await db.collection('users').doc(window.bnaAuthState.user.uid).update({storeCategories:next,updatedAt:new Date().toISOString()});
-        window.bnaAuthState.profile.storeCategories=next;renderManagerCategories();byId('category').value=name;
-        byId('productCategoryHint').textContent='Category “'+name+'” created and selected. You can now save the product.';
-        byId('storeCategoryStatus').textContent='Category “'+name+'” created for this store.';
-      }catch(err){console.error('Create category from product form failed:',err);alert('Category could not be saved. Firebase says: '+(err.code||'error')+' — '+(err.message||'Please check Firestore rules and manager access.'));}
-      finally{button.disabled=false;button.textContent='＋ Create category here';}
-    });
     byId('category').addEventListener('change',()=>{if(byId('category').value)byId('productCategoryHint').textContent='Category selected. You can now save the product.';});
     byId('storeCategoryForm').addEventListener('submit',async e=>{
       e.preventDefault();if(!isAdmin()){byId('storeCategoryStatus').textContent='Only the manager can create categories.';return;}
@@ -1574,7 +1555,7 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
     byId('saveButton').addEventListener('click',()=>{
-      if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Tap “Create category here” to create one, then save again.';const st=byId('syncStatus');st.hidden=false;st.style.color='#b42318';st.textContent='Product not saved: select a category first.';byId('category').focus();}
+      if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Create one in the separate “Manage Store Categories” section above, then select it here.';const st=byId('syncStatus');st.hidden=false;st.style.color='#b42318';st.textContent='Product not saved: select a category first.';byId('category').focus();}
     });
     form.addEventListener('submit',async event=>{
       event.preventDefault();
