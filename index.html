@@ -1220,6 +1220,26 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   const accountSales = {today:{categories:{},repayments:0},week:{categories:{},repayments:0},month:{categories:{},repayments:0}};
   const accountLabels = {today:'Today',week:'This Week',month:'This Month'};
   let activeAccountPeriod='today';
+  let accountClosures=[];
+  const closeDateValue=value=>{if(value&&typeof value.toDate==='function')return value.toDate();if(value&&typeof value.seconds==='number')return new Date(value.seconds*1000);return new Date(value||0)};
+  function pendingOfflineOperations(){try{return JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_sales_queue_v1'))||'[]').length+JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_loan_ops_v1'))||'[]').length}catch(_){return 1}}
+  async function closeCategoryPeriod(category,button){
+    const st=window.bnaAuthState||{};
+    if(st.role!=='admin'||!st.user||!st.ready){alert('Only the signed-in manager can close a category accounting period.');return;}
+    if(!navigator.onLine){alert('Connect to the internet before closing a period. No records will be deleted.');return;}
+    if(pendingOfflineOperations()>0){alert('There are pending offline transactions. Synchronize them first, then close this period.');return;}
+    const total=Number((accountSales[activeAccountPeriod]?.categories||{})[category]||0);
+    const promptText='Close the current accounting period for '+category+'?\n\nCurrent '+accountLabels[activeAccountPeriod]+' total: '+money(total)+'\n\nHistorical sales will be preserved. This only records a closing time for this category; it does not delete sales, change stock, or affect other categories.';
+    if(!confirm(promptText))return;
+    if(button){button.disabled=true;button.textContent='Closing…';}
+    try{
+      const now=new Date();
+      await db.collection('accountClosures').add({businessId:tenantId(),managerUid:st.managerUid||tenantId(),category:String(category),closedAt:now.toISOString(),closedAtMillis:now.getTime(),closedBy:st.user.uid,closedByEmail:st.user.email||'',periodView:activeAccountPeriod,periodLabel:accountLabels[activeAccountPeriod],periodTotal:total,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      await refreshAccountSales();
+      alert(category+' account period closed. Historical records are preserved, and new sales will count in the next period.');
+    }catch(error){console.error('Could not close category period:',error);alert('Could not close this period. No records were deleted. Check Firestore rules for manager-authorized writes to accountClosures, then try again.');}
+    finally{if(button){button.disabled=false;button.textContent='Close / Reset Period';}}
+  }
   const categoryIcon = name => ({drinks:'🥤',cereal:'🌾',food:'🛒',textile:'🧵',furniture:'🪑',cosmetics:'🧴'}[String(name||'').toLowerCase()] || '📦');
   function renderAccount(period) {
     activeAccountPeriod=period;
@@ -1240,14 +1260,21 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const icon=document.createElement('div');icon.className='icon';icon.textContent=categoryIcon(category);
       const heading=document.createElement('h2');heading.textContent=category+' Account';
       const amount=document.createElement('div');amount.className='account-amount';amount.textContent=money((x.categories||{})[category]||0);
-      card.append(icon,heading,amount);grid.appendChild(card);
+      const closure=accountClosures.filter(c=>String(c.category||'')===String(category)).sort((a,b)=>closeDateValue(b.closedAtMillis||b.closedAt).getTime()-closeDateValue(a.closedAtMillis||a.closedAt).getTime())[0];
+      const note=document.createElement('p');note.className='hint';note.style.cssText='font-size:.78rem;margin:8px 0';note.textContent=closure?'Previous period closed '+closeDateValue(closure.closedAtMillis||closure.closedAt).toLocaleString():'No period closed yet';
+      card.append(icon,heading,amount,note);
+      if(window.bnaAuthState?.role==='admin'){const closeBtn=document.createElement('button');closeBtn.type='button';closeBtn.className='btn light';closeBtn.textContent='Close / Reset Period';closeBtn.style.cssText='width:100%;margin-top:8px';closeBtn.addEventListener('click',()=>closeCategoryPeriod(category,closeBtn));card.appendChild(closeBtn);}
+      grid.appendChild(card);
     });
   }
   async function refreshAccountSales(){
     if(!window.bnaAuthState || !window.bnaAuthState.ready) return;
     try{
-      const [salesSnap, inventorySnap]=await Promise.all([tenantQuery('sales').get(),tenantQuery('inventory').get()]);
+      const [salesSnap, inventorySnap, closuresSnap]=await Promise.all([tenantQuery('sales').get(),tenantQuery('inventory').get(),tenantQuery('accountClosures').get()]);
       const inventory=new Map(inventorySnap.docs.map(d=>[d.id,d.data()]));
+      accountClosures=closuresSnap.docs.map(d=>({...d.data(),_id:d.id}));
+      const latestClosureByCategory=new Map();
+      accountClosures.forEach(c=>{const key=String(c.category||'');const ms=closeDateValue(c.closedAtMillis||c.closedAt).getTime();if(!key||!Number.isFinite(ms))return;const prior=latestClosureByCategory.get(key);if(!prior||ms>prior.ms)latestClosureByCategory.set(key,{ms,record:c});});
       const now=new Date(), dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
       const weekStart=new Date(dayStart);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
       const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
@@ -1265,6 +1292,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
           const product=inventory.get(String(item.productId||item.id||''))||{};
           const category=String(item.category||item.categoryName||product.category||product.categoryName||'').trim();
           if(!category)return;
+          const closure=latestClosureByCategory.get(category);if(closure&&date.getTime()<=closure.ms)return;
           const amount=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unitPrice)||0);
           applicable.forEach(k=>accountSales[k].categories[category]=(accountSales[k].categories[category]||0)+amount);
         });
