@@ -668,6 +668,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   const auth = firebase.auth();
+  // Shared safely with the separate Store-view script below.
+  // Without these exports, category/product handlers reference closure-local names
+  // that are not visible outside this main IIFE.
+  window.bnaDb = db;
+  window.bnaTenantStorageKey = tenantStorageKey;
+  window.bnaTenantQuery = tenantQuery;
   // Offline-first for this single cashier device. Firestore stores cached documents
   // and queues writes while offline, then synchronizes them when connectivity returns.
   try { db.enablePersistence({synchronizeTabs:false}).catch(err => console.warn('Firestore persistence could not be enabled:', err.code || err)); } catch (err) { console.warn('Firestore persistence unavailable:', err); }
@@ -1363,7 +1369,10 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
 
     const firebaseConfig = {apiKey:"AIzaSyDy9IkH2FXseOAp7E9cyhhdUzse3c27My0",authDomain:"bnag-98914.firebaseapp.com",projectId:"bnag-98914",storageBucket:"bnag-98914.firebasestorage.app",messagingSenderId:"773444518955",appId:"1:773444518955:web:0445763c9b6be5457a166e"};
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const db = window.bnaDb || firebase.firestore();
+    const tenantId = window.bnaTenantId || (() => String(window.bnaAuthState?.tenantId || window.bnaAuthState?.businessId || window.bnaAuthState?.profile?.businessId || window.bnaAuthState?.profile?.managerUid || (window.bnaAuthState?.role === 'admin' ? window.bnaAuthState?.user?.uid : '') || 'unassigned'));
+    const tenantStorageKey = window.bnaTenantStorageKey || (base => base + '_' + tenantId());
+    const tenantQuery = window.bnaTenantQuery || (collectionName => db.collection(collectionName).where('businessId', '==', tenantId()));
     const form = document.getElementById('productForm');
     const byId = id => document.getElementById(id);
     let products = [], editingId = null, levelCounter = 0;
@@ -1387,8 +1396,15 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       if(!name){return;}if(name.length>50){byId('storeCategoryStatus').textContent='Category names must be 50 characters or fewer.';return;}
       if(existing.some(x=>x.toLowerCase()===name.toLowerCase())){byId('storeCategoryStatus').textContent='That category already exists.';return;}
       const next=[...existing,name];const button=byId('storeCategoryForm').querySelector('button');button.disabled=true;
-      try{await db.collection('users').doc(window.bnaAuthState.user.uid).update({storeCategories:next,updatedAt:new Date().toISOString()});window.bnaAuthState.profile.storeCategories=next;input.value='';byId('storeCategoryStatus').textContent='Category “'+name+'” created for this store.';renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));}
-      catch(err){console.error(err);byId('storeCategoryStatus').textContent='Could not save category: '+(err.message||err.code||'Firebase error');}
+      try{
+        if(!db) throw new Error('Firebase connection is not ready. Refresh the page and sign in again.');
+        const authState=window.bnaAuthState;
+        if(!authState?.user?.uid) throw new Error('Your manager login is not ready. Please sign out and sign in again.');
+        await db.collection('users').doc(authState.user.uid).update({storeCategories:next,updatedAt:new Date().toISOString()});
+        authState.profile=authState.profile||{};authState.profile.storeCategories=next;input.value='';
+        byId('storeCategoryStatus').textContent='Category “'+name+'” created for this store.';
+        renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));
+      } catch(err){console.error('Category save failed:',err);byId('storeCategoryStatus').textContent='Could not save category ('+(err.code||'error')+'): '+(err.message||'Firebase error');}
       finally{button.disabled=false;}
     });
     let inventoryUnsubscribe = null;
