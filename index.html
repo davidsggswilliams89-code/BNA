@@ -562,7 +562,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     <div class="add-product-trigger"><button class="btn btn-primary" id="showProductForm" type="button">＋ Add Product</button></div>
     <section class="panel" id="productFormPanel" hidden>
       <h2 id="formTitle">➕ Add Product</h2>
-      <form id="productForm">
+      <form id="productForm" novalidate>
         <div class="form-grid">
           <div class="field full">
             <label for="productName">Product name</label>
@@ -574,7 +574,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
               <option value="">Create or select a store category</option>
             </select>
             <button class="btn btn-secondary" id="createCategoryFromProduct" type="button" style="margin-top:8px">＋ Create category here</button>
-            <p class="hint" id="productCategoryHint" role="status">Select a category before saving. If your store has none, use “Create category here”.</p>
+            <p class="hint" id="productCategoryHint" role="status">Enter a product name and select a category before saving. If your store has none, use “Create category here”.</p>
           </div>
           <div class="field full">
             <div id="subQuantityRows"></div>
@@ -1577,8 +1577,17 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Tap “Create category here” to create one, then save again.';byId('category').focus();}
     });
     form.addEventListener('submit',async event=>{
-      event.preventDefault();if(!isAdmin()){alert('Only an administrator can add or edit products.');return}const value=formValues();
-      if(!value.name||value.packQuantity<=0||!value.packUnit||getLevels().some(l=>l.quantity<=0||!l.unit)||value.unitPrice<0){alert('Please enter a product name, a name and quantity for every section, and a price of zero or more.');return}
+      event.preventDefault();
+      const status=byId('syncStatus');
+      const showFormError=(message,field)=>{status.hidden=false;status.textContent=message;status.style.color='#b42318';if(field){field.focus({preventScroll:true});field.scrollIntoView({behavior:'smooth',block:'center'});}return;};
+      if(!isAdmin()){showFormError('Product was not saved: please sign in with the manager account.');return}
+      const value=formValues();
+      if(!value.name){showFormError('Enter the Product name above the Category field.',byId('productName'));return}
+      if(!value.category){showFormError('Select a Category before saving the product.',byId('category'));return}
+      if(value.packQuantity<=0||!value.packUnit){showFormError('Enter a section/subcategory name and a stock quantity greater than zero.',document.querySelector('[data-level-unit]'));return}
+      if(getLevels().some(l=>l.quantity<=0||!l.unit)){showFormError('Every section needs a name and a quantity greater than zero.',document.querySelectorAll('[data-level-unit]')[1]||document.querySelector('[data-level-quantity]'));return}
+      if(!Number.isFinite(Number(byId('unitPrice').value))||byId('unitPrice').value.trim()===''||value.unitPrice<0){showFormError('Enter a valid selling price (₦0 or more).',byId('unitPrice'));return}
+      status.hidden=true;status.textContent='';
       byId('saveButton').disabled=true;
       try{
         if(editingId){const old=products.find(p=>p.id===editingId)||{};await db.collection('inventory').doc(String(editingId)).set({...old,...value,id:editingId,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId(),updatedAt:new Date().toISOString()},{merge:true})}
