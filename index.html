@@ -1592,10 +1592,10 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       status.hidden=false;status.style.color='#174ea6';status.textContent='Saving product… please wait.';
       byId('saveButton').disabled=true;byId('saveButton').textContent='Saving…';
       try{
-        if(editingId){const old=products.find(p=>p.id===editingId)||{};await db.collection('inventory').doc(String(editingId)).set({...old,...value,id:editingId,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId(),updatedAt:new Date().toISOString()},{merge:true})}
+        if(editingId){const old=products.find(p=>p.id===editingId)||{};await db.collection('inventory').doc(String(editingId)).set({...old,...value,id:editingId,businessId:tenantId(),managerUid:(window.bnaAuthState.role==='admin'?window.bnaAuthState.user.uid:(window.bnaAuthState.managerUid||tenantId())),updatedAt:new Date().toISOString()},{merge:true})}
         else{
           const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2);
-          const product={...value,id,soldUnits:0,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId(),createdAt:new Date().toISOString()};
+          const product={...value,id,soldUnits:0,businessId:tenantId(),managerUid:(window.bnaAuthState.role==='admin'?window.bnaAuthState.user.uid:(window.bnaAuthState.managerUid||tenantId())),createdAt:new Date().toISOString()};
           await db.collection('inventory').doc(id).set(product);
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY())||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY(),JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
