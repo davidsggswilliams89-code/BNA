@@ -1526,11 +1526,13 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));
       body.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
     }
-    function resetForm(){
+    function resetForm(keepFormOpen=false){
       form.reset();byId('subQuantityRows').innerHTML='';levelCounter=0;editingId=null;
       byId('formTitle').textContent='➕ Add Product';byId('saveButton').textContent='Save Product';byId('cancelEdit').hidden=true;
       addSubQuantity('','');
-      byId('productFormPanel').hidden=true;byId('showProductForm').hidden=false;updatePreview();
+      if(keepFormOpen){byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;}
+      else{byId('productFormPanel').hidden=true;byId('showProductForm').hidden=false;}
+      updatePreview();
     }
     function editProduct(id){
       const p=products.find(x=>x.id===id);if(!p)return;editingId=id;
@@ -1555,7 +1557,9 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     byId('showProductForm').addEventListener('click',()=>{byId('productFormPanel').hidden=false;byId('showProductForm').hidden=true;byId('productFormPanel').scrollIntoView({behavior:'smooth',block:'start'});byId('productName').focus()});
     byId('searchProducts').addEventListener('input',renderProducts);byId('cancelEdit').addEventListener('click',resetForm);
     byId('saveButton').addEventListener('click',()=>{
-      if(!byId('category').value){byId('productCategoryHint').textContent='A category is required. Create one in the separate “Manage Store Categories” section above, then select it here.';const st=byId('syncStatus');st.hidden=false;st.style.color='#b42318';st.textContent='Product not saved: select a category first.';byId('category').focus();}
+      const st=byId('syncStatus');st.hidden=false;
+      if(!byId('category').value){st.style.color='#b42318';st.textContent='Product not saved: create a category in Manage Store Categories, then select it here.';byId('productCategoryHint').textContent='A category is required. Create one in the separate “Manage Store Categories” section above, then select it here.';byId('category').focus();}
+      else{st.style.color='#174ea6';st.textContent='Checking product details…';}
     });
     form.addEventListener('submit',async event=>{
       event.preventDefault();
@@ -1568,8 +1572,8 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       if(value.packQuantity<=0||!value.packUnit){showFormError('Enter a section/subcategory name and a stock quantity greater than zero.',document.querySelector('[data-level-unit]'));return}
       if(getLevels().some(l=>l.quantity<=0||!l.unit)){showFormError('Every section needs a name and a quantity greater than zero.',document.querySelectorAll('[data-level-unit]')[1]||document.querySelector('[data-level-quantity]'));return}
       if(!Number.isFinite(Number(byId('unitPrice').value))||byId('unitPrice').value.trim()===''||value.unitPrice<0){showFormError('Enter a valid selling price (₦0 or more).',byId('unitPrice'));return}
-      status.hidden=true;status.textContent='';
-      byId('saveButton').disabled=true;
+      status.hidden=false;status.style.color='#174ea6';status.textContent='Saving product… please wait.';
+      byId('saveButton').disabled=true;byId('saveButton').textContent='Saving…';
       try{
         if(editingId){const old=products.find(p=>p.id===editingId)||{};await db.collection('inventory').doc(String(editingId)).set({...old,...value,id:editingId,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId(),updatedAt:new Date().toISOString()},{merge:true})}
         else{
@@ -1578,10 +1582,10 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
           await db.collection('inventory').doc(id).set(product);
           try{const old=JSON.parse(localStorage.getItem(LOCAL_KEY())||'[]');if(Array.isArray(old))localStorage.setItem(LOCAL_KEY(),JSON.stringify([...old.filter(p=>String(p.id)!==id),product]))}catch(_){}
         }
-        resetForm();const savedStatus=byId('syncStatus');savedStatus.hidden=false;savedStatus.style.color='#17663a';savedStatus.textContent=navigator.onLine?'Product saved to Firebase.':'Product saved locally; check your connection.';
+        resetForm(true);const savedStatus=byId('syncStatus');savedStatus.hidden=false;savedStatus.style.color='#17663a';savedStatus.textContent=navigator.onLine?'Success: product saved to Firebase.':'Product saved locally; check your connection.';
         if(typeof window.bnaReloadProducts==='function') await window.bnaReloadProducts();
-      }catch(e){console.error('Product save failed:',{code:e&&e.code,message:e&&e.message,error:e,tenantId:tenantId(),role:window.bnaAuthState&&window.bnaAuthState.role,uid:window.bnaAuthState&&window.bnaAuthState.user&&window.bnaAuthState.user.uid});const code=e&&e.code?String(e.code):'unknown error';const detail=e&&e.message?String(e.message):'No additional details were returned by Firebase.';alert('Product could not be saved.\n\nFirebase error: '+code+'\nDetails: '+detail+'\nStore ID: '+tenantId()+'\n\nIf this says permission-denied, check that the deployed Firestore rules match this manager profile and that the manager profile has businessId and managerUid equal to the manager Firebase UID.')}
-      finally{byId('saveButton').disabled=false}
+      }catch(e){console.error('Product save failed:',{code:e&&e.code,message:e&&e.message,error:e,tenantId:tenantId(),role:window.bnaAuthState&&window.bnaAuthState.role,uid:window.bnaAuthState&&window.bnaAuthState.user&&window.bnaAuthState.user.uid});const code=e&&e.code?String(e.code):'unknown error';const detail=e&&e.message?String(e.message):'No additional details were returned by Firebase.';status.hidden=false;status.style.color='#b42318';status.textContent='Product could not be saved ('+code+'): '+detail;alert('Product could not be saved.\n\nFirebase error: '+code+'\nDetails: '+detail+'\nStore ID: '+tenantId()+'\n\nIf this says permission-denied, check that the deployed Firestore rules match this manager profile and that the manager profile has businessId and managerUid equal to the manager Firebase UID.')}
+      finally{byId('saveButton').disabled=false;byId('saveButton').textContent=editingId?'Update Product':'Save Product'}
     });
     // Inventory listener is started by updateStoreAccess after admin authorization.
     window.addEventListener('online',()=>{byId('syncStatus').textContent='Internet returned. Firebase will sync queued changes when available.'});
