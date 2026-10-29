@@ -389,6 +389,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 #agentView th{background:#f3f7fc;color:#344054}
 @media(max-width:650px){#agentView{width:calc(100% - 14px);margin-top:14px}#agentView .agent-card{padding:12px}#agentView .agent-grid,#agentView .agent-checks{grid-template-columns:1fr}.agent-nav-button{min-height:36px;padding:6px 10px;font-size:.76rem}}
 
+
+/* User-requested removal: hide the specified management/settings containers without disturbing other features. */
+#categoryManagerPanel, #posSettingsPanel, #wifiStockPanel, #posFloatPanel { display: none !important; }
 </style>
 </head>
 <body>
@@ -486,7 +489,9 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     <div class="period" id="accountPeriodLabel">Today</div>
     <div class="account-main-total" id="accountMainTotal">₦0.00</div>
   </section>
-  <section class="account-grid" id="accountCategoryGrid" aria-label="Balances by store category">
+  <section class="account-grid">
+    <article class="account-balance"><div class="icon">🥤</div><h2>Drinks Balance</h2><div class="account-amount" id="accountDrinksBalance">₦0.00</div></article>
+    <article class="account-balance"><div class="icon">🌾</div><h2>Cereal Balance</h2><div class="account-amount" id="accountCerealBalance">₦0.00</div></article>
     <article class="account-balance"><div class="icon">💳</div><h2>POS Balance</h2><div class="account-amount" id="accountPosBalance">₦0.00</div></article>
     <article class="account-balance"><div class="icon">📶</div><h2>Wi-Fi Balance</h2><div class="account-amount" id="accountWifiBalance">₦0.00</div></article>
   </section>
@@ -498,7 +503,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       <article><span>Total Repaid</span><strong id="accountLoanRepaid">₦0.00</strong></article>
     </div>
   </section>
-  <div class="account-note">Main Company Account = the total of all created store categories plus POS, Wi-Fi Hotspot, and received loan repayments. Loan credit is tracked separately.</div>
+  <div class="account-note">Main Company Account = Drinks + Cereal + POS + Wi-Fi Hotspot. Loan Account tracks credit separately; only repayments count as money received.</div>
 </section>
 
 
@@ -513,18 +518,6 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         <button class="btn btn-primary" type="submit">＋ Create Category</button>
       </form>
       <div id="storeCategoryList" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"></div>
-      <div style="border-top:1px solid #e4eaf3;margin-top:16px;padding-top:14px">
-        <h3 style="margin:0 0 8px">Add Subcategory / Product</h3>
-        <p class="hint">Choose one of your categories, then add an item under it and set its selling price. It will appear in Store and its category will get a separate account balance.</p>
-        <form id="storeSubcategoryForm" class="form-grid">
-          <div class="field"><label for="subcategoryParent">Parent category</label><select id="subcategoryParent" required><option value="">Select category</option></select></div>
-          <div class="field"><label for="subcategoryName">Subcategory / item name</label><input id="subcategoryName" maxlength="100" required placeholder="e.g. Coca-Cola"></div>
-          <div class="field"><label for="subcategoryPrice">Selling price (₦)</label><input id="subcategoryPrice" type="number" min="0" step="0.01" required placeholder="e.g. 200"></div>
-          <div class="field"><label for="subcategoryStock">Opening quantity</label><input id="subcategoryStock" type="number" min="0" step="1" value="1" required></div>
-          <div class="field full"><button class="btn btn-primary" type="submit">＋ Save Subcategory</button></div>
-        </form>
-        <p class="hint" id="storeSubcategoryStatus" role="status"></p>
-      </div>
       <p class="hint" id="storeCategoryStatus" role="status"></p>
     </section>
 
@@ -1214,28 +1207,20 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   if (window.bnaAuthState && window.bnaAuthState.ready) readProducts();renderHistory();
 
 
-  // Account view: dynamic category balances are based on the manager's own Store categories.
-  const accountSales = {today:{categories:{},pos:0,wifi:0,repayments:0},week:{categories:{},pos:0,wifi:0,repayments:0},month:{categories:{},pos:0,wifi:0,repayments:0}};
+  // Account view: period filters and totals.
+  const accountSales = {today:{drinks:0,cereal:0,pos:0,wifi:0},week:{drinks:0,cereal:0,pos:0,wifi:0},month:{drinks:0,cereal:0,pos:0,wifi:0}};
   const accountLabels = {today:'Today',week:'This Week',month:'This Month'};
   let activeAccountPeriod='today';
   function renderAccount(period) {
     activeAccountPeriod=period;
     const x = accountSales[period] || accountSales.today;
-    const categoryTotal=Object.values(x.categories||{}).reduce((sum,value)=>sum+(Number(value)||0),0);
-    const total = categoryTotal+(+x.pos||0)+(+x.wifi||0)+(+x.repayments||0);
+    const total = (+x.drinks||0)+(+x.cereal||0)+(+x.pos||0)+(+x.wifi||0)+(+x.repayments||0);
     $('accountPeriodLabel').textContent = accountLabels[period];
     $('accountMainTotal').textContent = money(total);
+    $('accountDrinksBalance').textContent = money(x.drinks);
+    $('accountCerealBalance').textContent = money(x.cereal);
     $('accountPosBalance').textContent = money(x.pos);
     $('accountWifiBalance').textContent = money(x.wifi);
-    const grid=$('accountCategoryGrid');
-    if(grid){
-      const custom=Object.entries(x.categories||{}).sort((a,b)=>a[0].localeCompare(b[0]));
-      const specials=[...grid.querySelectorAll('#accountPosBalance,#accountWifiBalance')].map(el=>el.closest('.account-balance')).filter(Boolean);
-      grid.innerHTML='';
-      custom.forEach(([name,amount])=>{const card=document.createElement('article');card.className='account-balance';const icon=document.createElement('div');icon.className='icon';icon.textContent='🧾';const title=document.createElement('h2');title.textContent=name+' Balance';const value=document.createElement('div');value.className='account-amount';value.textContent=money(amount);card.append(icon,title,value);grid.appendChild(card)});
-      specials.forEach(card=>grid.appendChild(card));
-      if(!custom.length){const empty=document.createElement('p');empty.className='account-note';empty.textContent='Create your own categories in Store. Each category will appear here with its own account balance.';grid.prepend(empty)}
-    }
   }
   async function refreshAccountSales(){
     if(!window.bnaAuthState || !window.bnaAuthState.ready) return;
@@ -1246,19 +1231,17 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
       const weekStart=new Date(dayStart);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
       const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
       const starts={today:dayStart,week:weekStart,month:monthStart};
-      Object.keys(accountSales).forEach(k=>accountSales[k]={categories:{},pos:0,wifi:0,repayments:0});
+      Object.keys(accountSales).forEach(k=>accountSales[k]={drinks:0,cereal:0,pos:0,wifi:0,repayments:0});
       salesSnap.docs.forEach(doc=>{
         const sale=doc.data()||{};if(sale.paymentStatus==='credit'||sale.type==='Loan/Credit')return;const date=new Date(sale.date||sale.createdAt||0);if(!Number.isFinite(date.getTime()))return;
-        const applicable=Object.keys(starts).filter(k=>date>=starts[k]);if(!applicable.length)return;
-        if(sale.type==='Loan Repayment'||sale.category==='Loan Repayment'){applicable.forEach(k=>accountSales[k].repayments=(accountSales[k].repayments||0)+Math.max(0,Number(sale.total??sale.amount)||0));return;}
+        const applicable=Object.keys(starts).filter(k=>date>=starts[k]);if(!applicable.length)return;if(sale.type==='Loan Repayment'||sale.category==='Loan Repayment'){applicable.forEach(k=>accountSales[k].repayments=(accountSales[k].repayments||0)+Math.max(0,Number(sale.total??sale.amount)||0));return;}
         (Array.isArray(sale.items)?sale.items:[]).forEach(item=>{
           const product=inventory.get(String(item.productId||item.id||''))||{};
-          const name=String(item.name||product.name||'');
-          const category=String(item.category||product.category||sale.category||sale.type||'Uncategorised').trim();
-          const normalized=(category+' '+name).toLowerCase();
+          const name=String(item.name||product.name||'').toLowerCase();
+          const category=String(item.category||product.category||'').toLowerCase();
           const amount=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unitPrice)||0);
-          const key=/\b(pos|point of sale)\b/.test(normalized)?'pos':(/\b(wi-?fi|hotspot|data)\b/.test(normalized)?'wifi':category);
-          applicable.forEach(k=>{if(key==='pos'||key==='wifi')accountSales[k][key]+=amount;else accountSales[k].categories[key]=(accountSales[k].categories[key]||0)+amount;});
+          let key=/\b(pos|point of sale)\b/.test(category+' '+name)?'pos':(/\b(wi-?fi|hotspot|data)\b/.test(category+' '+name)?'wifi':(/\b(drink|beverage|water|juice|cola|coke|fanta|sprite|pepsi|soda|maltina|milk|yogh?urt)\b/.test(category+' '+name)?'drinks':'cereal'));
+          applicable.forEach(k=>accountSales[k][key]+=amount);
         });
       });
       renderAccount(activeAccountPeriod);
@@ -1387,7 +1370,6 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       const list=byId('storeCategoryList');if(!list)return;const categories=managerCategories();list.innerHTML='';
       if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}else categories.forEach(name=>{const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;list.appendChild(tag)});
       const select=byId('category');if(select){const current=select.value;select.innerHTML='<option value="">Select a category</option>';categories.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option)});if(categories.includes(current))select.value=current;else if(categories.length===1)select.value=categories[0];}
-      const parent=byId('subcategoryParent');if(parent){const current=parent.value;parent.innerHTML='<option value="">Select category</option>';categories.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;parent.appendChild(option)});if(categories.includes(current))parent.value=current;else if(categories.length===1)parent.value=categories[0];}
       if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
     }
     window.addEventListener('bna-categories-updated',renderManagerCategories);
@@ -1419,26 +1401,6 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
       try{await db.collection('users').doc(window.bnaAuthState.user.uid).update({storeCategories:next,updatedAt:new Date().toISOString()});window.bnaAuthState.profile.storeCategories=next;input.value='';byId('storeCategoryStatus').textContent='Category “'+name+'” created for this store.';renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));}
       catch(err){console.error(err);byId('storeCategoryStatus').textContent='Could not save category: '+(err.message||err.code||'Firebase error');}
       finally{button.disabled=false;}
-    });
-    byId('storeSubcategoryForm').addEventListener('submit',async e=>{
-      e.preventDefault();
-      if(!isAdmin()){byId('storeSubcategoryStatus').textContent='Only the manager can add subcategories.';return;}
-      const category=byId('subcategoryParent').value.trim(),name=byId('subcategoryName').value.trim().replace(/\s+/g,' '),price=Number(byId('subcategoryPrice').value),quantity=Math.floor(Number(byId('subcategoryStock').value));
-      if(!category||!managerCategories().includes(category)){byId('storeSubcategoryStatus').textContent='Create and select a parent category first.';return;}
-      if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(quantity)||quantity<0){byId('storeSubcategoryStatus').textContent='Enter a subcategory name, valid price, and opening quantity.';return;}
-      const button=byId('storeSubcategoryForm').querySelector('button[type=submit]');button.disabled=true;button.textContent='Saving…';
-      try{
-        const duplicate=products.some(p=>String(p.category||'').toLowerCase()===category.toLowerCase()&&String(p.name||'').toLowerCase()===name.toLowerCase());
-        if(duplicate)throw new Error('This subcategory/item already exists in that category. Edit the existing product instead.');
-        const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2);
-        const product={id,name,category,packUnit:'unit',packQuantity:quantity,subQuantities:[],muduPerPack:1,unitsPerMudu:1,unitPrice:price,soldUnits:0,businessId:tenantId(),managerUid:window.bnaAuthState.managerUid||tenantId(),createdAt:new Date().toISOString(),subcategory:true};
-        await db.collection('inventory').doc(id).set(product);
-        byId('subcategoryName').value='';byId('subcategoryPrice').value='';byId('subcategoryStock').value='1';
-        byId('storeSubcategoryStatus').textContent='Subcategory “'+name+'” saved under '+category+' at '+money(price)+'.';
-        if(typeof window.bnaReloadProducts==='function')await window.bnaReloadProducts();
-        if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
-      }catch(err){console.error('Subcategory save failed:',err);byId('storeSubcategoryStatus').textContent='Could not save subcategory: '+(err.message||err.code||'Firebase error')+'. Check Firestore rules and manager access.';}
-      finally{button.disabled=false;button.textContent='＋ Save Subcategory';}
     });
     let inventoryUnsubscribe = null;
     function startInventoryListener(){
