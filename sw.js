@@ -1,28 +1,74 @@
-/* BNA app shell cache. Firebase/auth/database requests are never cached here. */
-const CACHE_NAME = 'bna-app-shell-v1';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+/* B-N-A offline app shell and runtime asset cache. Deploy beside index.html on GitHub Pages. */
+'use strict';
+const CACHE_VERSION = 'bna-offline-v2';
+const APP_SHELL = [
+  './',
+  './index.html'
+];
+
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_VERSION);
+    for (const url of APP_SHELL) {
+      try { await cache.add(new Request(url, { cache: 'reload' })); }
+      catch (error) { /* GitHub Pages may not serve both aliases; cache whichever exists. */ }
+    }
+    await self.skipWaiting();
+  })());
 });
+
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('bna-app-shell-') && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('bna-offline-') && key !== CACHE_VERSION).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
+
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return; // Do not cache Firebase or third-party requests.
-  if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).then(response => {
-      if (response && response.ok) caches.open(CACHE_NAME).then(cache => cache.put('./index.html', response.clone()));
-      return response;
-    }).catch(() => caches.match('./index.html').then(cached => cached || caches.match('./'))));
+  const isAppPage = url.origin === self.location.origin &&
+    (url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'));
+  const isScriptOrStyle = /\.(js|css)(\?.*)?$/i.test(url.pathname) ||
+    (url.origin === 'https://www.gstatic.com' && /firebasejs/i.test(url.pathname));
+
+  if (isAppPage) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_VERSION);
+      try {
+        const response = await fetch(request);
+        if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+        return response;
+      } catch (error) {
+        return (await cache.match(request)) || (await cache.match('./index.html')) || Response.error();
+      }
+    })());
     return;
   }
-  event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
-    if (response && response.ok && url.origin === self.location.origin) {
-      const copy = response.clone(); caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-    }
-    return response;
-  })));
+
+  // Cache successful same-origin files and Firebase SDK scripts so a previously
+  // opened app can load its UI while disconnected. Never cache Firestore API data.
+  if (isScriptOrStyle) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_VERSION);
+      const cached = await cache.match(request);
+      if (cached) {
+        fetch(request).then(response => {
+          if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+        }).catch(() => {});
+        return cached;
+      }
+      try {
+        const response = await fetch(request);
+        if (response && response.ok && (response.type === 'basic' || response.type === 'cors')) {
+          cache.put(request, response.clone()).catch(() => {});
+        }
+        return response;
+      } catch (error) {
+        return Response.error();
+      }
+    })());
+  }
 });

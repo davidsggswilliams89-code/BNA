@@ -676,7 +676,7 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   try { db.enablePersistence({synchronizeTabs:false}).catch(err => console.warn('Firestore persistence could not be enabled:', err.code || err)); } catch (err) { console.warn('Firestore persistence unavailable:', err); }
   const ROLE_CACHE_KEY='bna_verified_role_v1';
   const SYNC_STATUS_ID='bnaSyncStatus';
-  function updateSyncStatus(){const el=document.getElementById(SYNC_STATUS_ID);if(!el)return;const online=navigator.onLine;const pending=(()=>{try{return JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_sales_queue_v1'))||'[]').length+JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_loan_ops_v1'))||'[]').length}catch(_){return 0}})();el.textContent=(online?'Online · Firebase sync available':'Offline · Changes will sync when connected')+(pending?' · '+pending+' pending sale(s)':'');el.style.background=online?'#e8f7ed':'#fff2d8';el.style.color=online?'#17663a':'#875600';}
+  function updateSyncStatus(){const el=document.getElementById(SYNC_STATUS_ID);if(!el)return;const online=navigator.onLine;const pending=(()=>{try{return JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_sales_queue_v1'))||'[]').length+JSON.parse(localStorage.getItem(tenantStorageKey('bna_offline_loan_ops_v1'))||'[]').length}catch(_){return 0}})();el.textContent=(online?'Online · Firebase sync available':'Offline · Changes will sync when connected')+(pending?' · '+pending+' pending operation(s)':'');el.style.background=online?'#e8f7ed':'#fff2d8';el.style.color=online?'#17663a':'#875600';}
   window.addEventListener('online',()=>{updateSyncStatus();});window.addEventListener('offline',updateSyncStatus);
   document.addEventListener('DOMContentLoaded',updateSyncStatus);
   const $ = id => document.getElementById(id);
@@ -1127,6 +1127,8 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
     if(!getOfflineQueue().length&&navigator.onLine){setNotice('All offline sales synchronized successfully.','success');refreshAccountSales();if(txState)fetchTransactions().catch(()=>{});}
   }
   window.addEventListener('online',()=>setTimeout(syncOfflineSales,500));
+  window.addEventListener('bna-auth-ready',()=>setTimeout(syncOfflineSales,250));
+  window.addEventListener('focus',()=>{if(navigator.onLine)setTimeout(syncOfflineSales,250)});
   async function completeSale() {
     const authState=window.bnaAuthState;
     if (!authState || !authState.ready || !authState.user || !['admin','cashier','agent'].includes(authState.role) || (authState.role==='agent' && !hasAgentPage('sales'))) {
