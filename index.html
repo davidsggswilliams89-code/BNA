@@ -398,6 +398,15 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
 #categoryManagerPanel .pos-range-form { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
 #categoryManagerPanel #newStoreCategory { flex:1 1 220px; min-width:0; }
 #categoryManagerPanel #storeCategoryStatus { min-height:1.3em; }
+#storeCategoryList{display:block!important;overflow-x:auto;margin-top:12px!important}
+.category-admin-table{width:100%;border-collapse:collapse;min-width:420px;background:#fff;border:1px solid #d0d5dd;border-radius:10px;overflow:hidden}
+.category-admin-table th,.category-admin-table td{padding:10px 12px;border-bottom:1px solid #eaecf0;text-align:left;vertical-align:middle}
+.category-admin-table th{background:#f3f7fc;color:#344054;font-size:.84rem}
+.category-admin-table td{font-size:.9rem}
+.category-admin-actions{display:flex;gap:6px;flex-wrap:wrap}
+.category-admin-actions .btn{padding:6px 10px;min-height:32px}
+.category-admin-actions .category-delete{background:#fff0f0!important;color:#b42318!important;border:1px solid #fecdca!important}
+.category-edit-input{width:100%;min-width:130px;padding:8px;border:1px solid #98a2b3;border-radius:7px;font:inherit}
 #productFormPanel { scroll-margin-top:16px; }
 @media(max-width:600px){ #categoryManagerPanel .pos-range-form .btn { width:100%; } }
 </style>
@@ -1446,16 +1455,61 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     // Persistence is intentionally not enabled here: the Home view may already have used Firestore.
     function isAdmin(){return !!(window.bnaAuthState && window.bnaAuthState.ready && window.bnaAuthState.role==='admin')}
     function managerCategories(){const a=window.bnaAuthState;return Array.isArray(a?.profile?.storeCategories)?a.profile.storeCategories:[]}
+    let editingCategoryName = null;
     function renderManagerCategories(){
       const panel=byId('categoryManagerPanel');if(panel)panel.hidden=!isAdmin();
       const list=byId('storeCategoryList');if(!list)return;const categories=managerCategories();list.innerHTML='';
-      if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}else categories.forEach(name=>{const wrap=document.createElement('div');wrap.style.cssText='display:inline-flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid #d0d5dd;border-radius:10px;background:#fff';const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;tag.style.margin='0';const edit=document.createElement('button');edit.type='button';edit.className='btn btn-secondary';edit.textContent='Edit';edit.style.cssText='padding:5px 9px;min-height:30px';edit.addEventListener('click',()=>renameStoreCategory(name));wrap.append(tag,edit);list.appendChild(wrap)});
+      if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}
+      else {
+        const table=document.createElement('table');table.className='category-admin-table';
+        const thead=document.createElement('thead'),headRow=document.createElement('tr');
+        ['Serial No.','Category','Actions'].forEach(label=>{const th=document.createElement('th');th.textContent=label;headRow.appendChild(th)});thead.appendChild(headRow);table.appendChild(thead);
+        const tbody=document.createElement('tbody');
+        categories.forEach((name,index)=>{
+          const tr=document.createElement('tr');
+          const serial=document.createElement('td');serial.textContent=String(index+1);tr.appendChild(serial);
+          const categoryCell=document.createElement('td');
+          if(editingCategoryName===name){const input=document.createElement('input');input.type='text';input.maxLength=50;input.className='category-edit-input';input.value=name;input.setAttribute('aria-label','Edit category name');input.id='inlineEditCategoryName';categoryCell.appendChild(input)}
+          else {const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;tag.style.margin='0';categoryCell.appendChild(tag)}
+          tr.appendChild(categoryCell);
+          const actions=document.createElement('td'),group=document.createElement('div');group.className='category-admin-actions';
+          if(editingCategoryName===name){
+            const save=document.createElement('button');save.type='button';save.className='btn btn-primary';save.textContent='Save';save.addEventListener('click',()=>saveInlineCategoryRename(name));
+            const cancel=document.createElement('button');cancel.type='button';cancel.className='btn btn-secondary';cancel.textContent='Cancel';cancel.addEventListener('click',()=>{editingCategoryName=null;renderManagerCategories()});group.append(save,cancel);
+          }else{
+            const edit=document.createElement('button');edit.type='button';edit.className='btn btn-secondary';edit.textContent='Edit';edit.addEventListener('click',()=>{editingCategoryName=name;renderManagerCategories();const input=byId('inlineEditCategoryName');input?.focus();input?.select()});
+            const del=document.createElement('button');del.type='button';del.className='btn category-delete';del.textContent='Delete';del.addEventListener('click',()=>deleteStoreCategory(name));group.append(edit,del);
+          }
+          actions.appendChild(group);tr.appendChild(actions);tbody.appendChild(tr);
+        });table.appendChild(tbody);list.appendChild(table);
+      }
       const select=byId('category');if(select){const current=select.value;select.innerHTML='<option value="">Select a category</option>';categories.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option)});if(categories.includes(current))select.value=current;else if(categories.length===1)select.value=categories[0];}
       if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
     }
-    async function renameStoreCategory(oldName){
+    async function saveInlineCategoryRename(oldName){const input=byId('inlineEditCategoryName');if(!input)return;const newName=input.value.trim().replace(/\s+/g,' ');if(!newName){alert('Enter a category name.');input.focus();return;}editingCategoryName=null;if(newName===oldName){renderManagerCategories();return;}await renameStoreCategory(oldName,newName);renderManagerCategories();}
+    async function deleteStoreCategory(name){
       if(!isAdmin())return;
-      const entered=prompt('Edit category name:',oldName);if(entered===null)return;
+      if(!navigator.onLine){alert('Connect to the internet before deleting a category. No changes were made.');return;}
+      if(!confirm('Delete category “'+name+'”? This will remove it from the manager category list and remove the assignment from agents. Historical sales and product records will not be deleted.'))return;
+      try{
+        const authState=window.bnaAuthState;if(!authState?.user?.uid)throw new Error('Manager session is not ready.');
+        const [inventorySnap,salesSnap,agentsSnap]=await Promise.all([
+          tenantQuery('inventory').get(),tenantQuery('sales').get(),
+          db.collection('users').where('managerUid','==',authState.user.uid).where('businessId','==',tenantId()).get()
+        ]);
+        const productsUsing=inventorySnap.docs.filter(doc=>String((doc.data()||{}).category||'')===name);
+        if(productsUsing.length){alert('This category still has '+productsUsing.length+' product(s). Move or remove those products first, then delete the category. No changes were made.');return;}
+        const salesUsing=salesSnap.docs.filter(doc=>{const d=doc.data()||{};return String(d.category||'')===name||(Array.isArray(d.items)&&d.items.some(item=>String(item.category||'')===name));});
+        if(salesUsing.length){alert('This category has historical sales records. To protect your accounts and history, it cannot be deleted while those records exist. Rename it instead if you need to change its name.');return;}
+        const existing=managerCategories();if(!existing.includes(name))return;const next=existing.filter(x=>x!==name);const batch=db.batch();
+        batch.update(db.collection('users').doc(authState.user.uid),{storeCategories:next,updatedAt:new Date().toISOString()});
+        agentsSnap.docs.forEach(doc=>{const d=doc.data()||{};if(d.role==='agent'&&Array.isArray(d.categories)&&d.categories.includes(name))batch.update(doc.ref,{categories:d.categories.filter(x=>x!==name),updatedAt:new Date().toISOString()});});
+        await batch.commit();authState.profile=authState.profile||{};authState.profile.storeCategories=next;editingCategoryName=null;renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));await refreshAccountSales();alert('Category deleted from the store category list. Historical records were preserved.');
+      }catch(err){console.error('Category delete failed:',err);alert('Could not delete category ('+(err.code||'error')+'): '+(err.message||'Check Firebase permissions and try again.'));}
+    }
+    async function renameStoreCategory(oldName, requestedName){
+      if(!isAdmin())return;
+      const entered=requestedName===undefined?prompt('Edit category name:',oldName):requestedName;if(entered===null)return;
       const newName=entered.trim().replace(/\s+/g,' ');
       if(!newName||newName===oldName)return;
       if(newName.length>50){alert('Category names must be 50 characters or fewer.');return;}
