@@ -1271,9 +1271,12 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
   async function refreshAccountSales(){
     if(!window.bnaAuthState || !window.bnaAuthState.ready) return;
     try{
-      const [salesSnap, inventorySnap, closuresSnap]=await Promise.all([tenantQuery('sales').get(),tenantQuery('inventory').get(),tenantQuery('accountClosures').get()]);
+      const [salesSnap, inventorySnap]=await Promise.all([tenantQuery('sales').get(),tenantQuery('inventory').get()]);
       const inventory=new Map(inventorySnap.docs.map(d=>[d.id,d.data()]));
-      accountClosures=closuresSnap.docs.map(d=>({...d.data(),_id:d.id}));
+      // Closure history is optional for calculating sales. If a deployment's rules do not
+      // yet allow this collection, still show valid sales totals instead of zeroing the page.
+      try{const closuresSnap=await tenantQuery('accountClosures').get();accountClosures=closuresSnap.docs.map(d=>({...d.data(),_id:d.id}));}
+      catch(closureError){console.warn('Account closure history unavailable; showing sales totals without closure markers:',closureError.code||closureError);accountClosures=[];}
       const latestClosureByCategory=new Map();
       accountClosures.forEach(c=>{const key=String(c.category||'');const ms=closeDateValue(c.closedAtMillis||c.closedAt).getTime();if(!key||!Number.isFinite(ms))return;const prior=latestClosureByCategory.get(key);if(!prior||ms>prior.ms)latestClosureByCategory.set(key,{ms,record:c});});
       const now=new Date(), dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
@@ -1289,14 +1292,30 @@ dialog h3{margin:0 0 14px}.dialog-actions{display:flex;gap:8px;justify-content:f
         if(sale.type==='Loan Repayment'||sale.category==='Loan Repayment'){
           applicable.forEach(k=>accountSales[k].repayments=(accountSales[k].repayments||0)+Math.max(0,Number(sale.total??sale.amount)||0));return;
         }
-        (Array.isArray(sale.items)?sale.items:[]).forEach(item=>{
-          const product=inventory.get(String(item.productId||item.id||''))||{};
-          const category=String(item.category||item.categoryName||product.category||product.categoryName||'').trim();
-          if(!category)return;
-          const closure=latestClosureByCategory.get(category);if(closure&&date.getTime()<=closure.ms)return;
-          const amount=Math.max(0,Number(item.quantity)||0)*Math.max(0,Number(item.unitPrice)||0);
-          applicable.forEach(k=>accountSales[k].categories[category]=(accountSales[k].categories[category]||0)+amount);
-        });
+        // Each completed sale document is already written per category and stores its own total.
+        // Prefer that category total so newer manager accounts don't show zero when an item has
+        // a missing/legacy category field; use item-level calculation only as a fallback.
+        let category=String(sale.category||sale.type||'').trim();
+        if(category==='Loan Repayment'||category==='Loan/Credit')return;
+        let amountValue=sale.total??sale.amount??sale.grandTotal??sale.totalAmount;
+        let amount=Number(amountValue);
+        if(!category || !Number.isFinite(amount)){
+          const itemTotals={};
+          (Array.isArray(sale.items)?sale.items:[]).forEach(item=>{
+            const product=inventory.get(String(item.productId||item.id||''))||{};
+            const itemCategory=String(item.category||item.categoryName||product.category||product.categoryName||'').trim();
+            if(!itemCategory)return;
+            itemTotals[itemCategory]=(itemTotals[itemCategory]||0)+Math.max(0,Number(item.quantity??item.qty)||0)*Math.max(0,Number(item.unitPrice??item.price??item.rate)||0);
+          });
+          Object.entries(itemTotals).forEach(([itemCategory,itemAmount])=>{
+            const closure=latestClosureByCategory.get(itemCategory);if(closure&&date.getTime()<=closure.ms)return;
+            applicable.forEach(k=>accountSales[k].categories[itemCategory]=(accountSales[k].categories[itemCategory]||0)+itemAmount);
+          });
+          return;
+        }
+        const closure=latestClosureByCategory.get(category);if(closure&&date.getTime()<=closure.ms)return;
+        amount=Math.max(0,amount);
+        applicable.forEach(k=>accountSales[k].categories[category]=(accountSales[k].categories[category]||0)+amount);
       });
       renderAccount(activeAccountPeriod);
     }catch(error){console.error('Could not calculate account totals from Firebase sales:',error);$('accountPeriodLabel').textContent=accountLabels[activeAccountPeriod]+' · unable to load sales';}
@@ -1397,10 +1416,14 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
   updateSyncStatus();
   // Cache the app shell so this page can reopen offline on HTTPS/localhost.
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
-        // The page still works with localStorage if service-worker setup is unavailable.
-      });
+    window.addEventListener('load', async () => {
+      try {
+        const registration=await navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'});
+        registration.update().catch(()=>{});
+        if(registration.waiting)registration.waiting.postMessage({type:'SKIP_WAITING'});
+        navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(!sessionStorage.getItem('bna_sw_reloaded_v3')){sessionStorage.setItem('bna_sw_reloaded_v3','1');location.reload();} });
+        console.info('B-N-A offline service worker registered:',registration.scope);
+      } catch (error) { console.error('B-N-A offline service worker registration failed:',error); }
     });
   }
 })();
@@ -1426,9 +1449,37 @@ Outstanding: ${loanMoney(next)}`)}catch(e){console.error(e);loanStatus('Repaymen
     function renderManagerCategories(){
       const panel=byId('categoryManagerPanel');if(panel)panel.hidden=!isAdmin();
       const list=byId('storeCategoryList');if(!list)return;const categories=managerCategories();list.innerHTML='';
-      if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}else categories.forEach(name=>{const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;list.appendChild(tag)});
+      if(!categories.length){list.innerHTML='<span class="hint">No categories yet. Create your first category above.</span>';}else categories.forEach(name=>{const wrap=document.createElement('div');wrap.style.cssText='display:inline-flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid #d0d5dd;border-radius:10px;background:#fff';const tag=document.createElement('span');tag.className='category-tag';tag.textContent=name;tag.style.margin='0';const edit=document.createElement('button');edit.type='button';edit.className='btn btn-secondary';edit.textContent='Edit';edit.style.cssText='padding:5px 9px;min-height:30px';edit.addEventListener('click',()=>renameStoreCategory(name));wrap.append(tag,edit);list.appendChild(wrap)});
       const select=byId('category');if(select){const current=select.value;select.innerHTML='<option value="">Select a category</option>';categories.forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;select.appendChild(option)});if(categories.includes(current))select.value=current;else if(categories.length===1)select.value=categories[0];}
       if(typeof window.bnaRefreshStoreCategoryViews==='function')window.bnaRefreshStoreCategoryViews();
+    }
+    async function renameStoreCategory(oldName){
+      if(!isAdmin())return;
+      const entered=prompt('Edit category name:',oldName);if(entered===null)return;
+      const newName=entered.trim().replace(/\s+/g,' ');
+      if(!newName||newName===oldName)return;
+      if(newName.length>50){alert('Category names must be 50 characters or fewer.');return;}
+      const existing=managerCategories();
+      if(existing.some(x=>x.toLowerCase()===newName.toLowerCase()&&x!==oldName)){alert('A category with that name already exists.');return;}
+      if(!navigator.onLine){alert('Connect to the internet before editing a category. No changes were made.');return;}
+      if(!confirm('Rename “'+oldName+'” to “'+newName+'”? Existing products, sales history, and assigned agent duties will be updated to use the new category name.'))return;
+      try{
+        const authState=window.bnaAuthState;if(!authState?.user?.uid)throw new Error('Manager session is not ready.');
+        const next=existing.map(x=>x===oldName?newName:x);
+        const [inventorySnap,salesSnap,agentsSnap]=await Promise.all([
+          tenantQuery('inventory').get(),tenantQuery('sales').get(),
+          db.collection('users').where('managerUid','==',authState.user.uid).where('businessId','==',tenantId()).get()
+        ]);
+        const batch=db.batch();
+        batch.update(db.collection('users').doc(authState.user.uid),{storeCategories:next,updatedAt:new Date().toISOString()});
+        inventorySnap.docs.forEach(doc=>{const d=doc.data()||{};if(String(d.category||'')===oldName)batch.update(doc.ref,{category:newName,updatedAt:new Date().toISOString()});});
+        salesSnap.docs.forEach(doc=>{const d=doc.data()||{};let changed=false;const patch={};if(String(d.category||'')===oldName){patch.category=newName;if(String(d.type||'')===oldName)patch.type=newName;changed=true;}if(Array.isArray(d.items)){const items=d.items.map(item=>{if(String(item.category||'')===oldName){changed=true;return {...item,category:newName};}return item;});if(changed)patch.items=items;}if(changed)batch.update(doc.ref,patch);});
+        agentsSnap.docs.forEach(doc=>{const d=doc.data()||{};if(d.role==='agent'&&Array.isArray(d.categories)&&d.categories.includes(oldName))batch.update(doc.ref,{categories:d.categories.map(x=>x===oldName?newName:x),updatedAt:new Date().toISOString()});});
+        const closureSnap=await tenantQuery('accountClosures').get();closureSnap.docs.forEach(doc=>{if(String((doc.data()||{}).category||'')===oldName)batch.update(doc.ref,{category:newName});});
+        await batch.commit();authState.profile=authState.profile||{};authState.profile.storeCategories=next;
+        renderManagerCategories();window.dispatchEvent(new CustomEvent('bna-categories-updated',{detail:{categories:next}}));
+        await refreshAccountSales();alert('Category renamed successfully. Existing sales history and assigned agent duties have been updated.');
+      }catch(err){console.error('Category rename failed:',err);alert('Could not edit this category ('+(err.code||'error')+'). No partial batch changes were saved. Check Firebase permissions and try again.');}
     }
     window.addEventListener('bna-categories-updated',renderManagerCategories);
     byId('category').addEventListener('change',()=>{if(byId('category').value)byId('productCategoryHint').textContent='Category selected. You can now save the product.';});
